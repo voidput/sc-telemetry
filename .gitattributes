@@ -1,0 +1,13 @@
+# Normalise to LF in the repo and on checkout (Windows clones with core.autocrlf=true stay LF too:
+# tests slice index.html and compare generated docs byte for byte).
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.sh text eol=lf
+*.wav binary
+*.oga binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.pb binary

@@ -1,0 +1,541 @@
+{
+ "$comment": "Default alert rules for scgameapi.alerts (docs/telemetry/alerts.md). A user file (--alerts PATH, $SCGAMEAPI_ALERTS, else .tmp/alerts.json) patches these by id: {\"rules\": [{\"id\": \"boost_low\", \"enabled\": false}, ...]} or adds new ids. sounds: first existing file the bridge player can decode wins; relative paths resolve against scgameapi/data/ (bundled WAV tones, used on Windows/macOS and where the freedesktop sound theme is missing). verified=false: the rule's data source never changed in a recording, so the trigger is a reasonable guess, not observed behaviour.",
+ "version": 1,
+ "settings": {
+  "speech": false,
+  "speech_gap_s": 2.0,
+  "queue_max": 6,
+  "queue_ttl_s": 10.0,
+  "settle_s": 1.5,
+  "stale_s": 3.0,
+  "event_max_age_s": 30.0,
+  "max_eval_hz": 20,
+  "sounds": {
+   "info": [
+    "/usr/share/sounds/freedesktop/stereo/message-new-instant.oga",
+    "sounds/info.wav"
+   ],
+   "warn": [
+    "/usr/share/sounds/freedesktop/stereo/dialog-warning.oga",
+    "sounds/warn.wav"
+   ],
+   "critical": [
+    "/usr/share/sounds/freedesktop/stereo/alarm-clock-elapsed.oga",
+    "/usr/share/sounds/freedesktop/stereo/bell.oga",
+    "sounds/critical.wav"
+   ]
+  },
+  "tts": {
+   "rate_wpm": 175,
+   "piper_voice": null
+  }
+ },
+ "rules": [
+  {
+   "id": "boost_low",
+   "description": "Boost reserves at or below 25% (re-arms above 35%)",
+   "kind": "threshold",
+   "path": "vehicle.state.flight.instruments.boost.reserves",
+   "op": "<=",
+   "value": 0.25,
+   "rearm": 0.35,
+   "when": {
+    "path": "vehicle.state.power.engines",
+    "op": "==",
+    "value": true
+   },
+   "severity": "warn",
+   "scope": "vehicle",
+   "cooldown_s": 15,
+   "debounce_s": 0,
+   "message": "Boost {pct}%",
+   "speech": "Boost {pct_words} percent",
+   "sound": "warn",
+   "verified": true
+  },
+  {
+   "id": "boost_empty",
+   "description": "Boost reserves empty (re-arms above 10%). boost.critical is NOT used: it goes true at ~25% (RSI_Perseus) and stays true until reserves recover",
+   "kind": "threshold",
+   "path": "vehicle.state.flight.instruments.boost.reserves",
+   "op": "<=",
+   "value": 0.01,
+   "rearm": 0.1,
+   "when": {
+    "path": "vehicle.state.power.engines",
+    "op": "==",
+    "value": true
+   },
+   "severity": "warn",
+   "scope": "vehicle",
+   "cooldown_s": 20,
+   "debounce_s": 0,
+   "supersedes": [
+    "boost_low"
+   ],
+   "message": "Boost depleted",
+   "speech": "Boost depleted",
+   "sound": "warn",
+   "verified": true
+  },
+  {
+   "id": "hydrogen_low",
+   "description": "Hydrogen fuel at or below 20% while engines are powered (it reads 0 with engines off)",
+   "kind": "threshold",
+   "path": "vehicle.state.flight.instruments.hydrogen_fuel",
+   "op": "<=",
+   "value": 0.2,
+   "rearm": 0.25,
+   "when": {
+    "path": "vehicle.state.power.engines",
+    "op": "==",
+    "value": true
+   },
+   "severity": "warn",
+   "scope": "vehicle",
+   "cooldown_s": 60,
+   "debounce_s": 2,
+   "message": "Hydrogen {pct}%",
+   "speech": "Hydrogen {pct_words} percent",
+   "sound": "warn",
+   "verified": true
+  },
+  {
+   "id": "hydrogen_critical",
+   "description": "Hydrogen fuel at or below 10%",
+   "kind": "threshold",
+   "path": "vehicle.state.flight.instruments.hydrogen_fuel",
+   "op": "<=",
+   "value": 0.1,
+   "rearm": 0.15,
+   "when": {
+    "path": "vehicle.state.power.engines",
+    "op": "==",
+    "value": true
+   },
+   "severity": "critical",
+   "scope": "vehicle",
+   "cooldown_s": 60,
+   "debounce_s": 2,
+   "supersedes": [
+    "hydrogen_low"
+   ],
+   "message": "Hydrogen critical {pct}%",
+   "speech": "Hydrogen critical",
+   "sound": "critical",
+   "verified": true
+  },
+  {
+   "id": "quantum_low",
+   "description": "Quantum fuel at or below 15% (only once quantum fuel has read above 0 on this vehicle)",
+   "kind": "threshold",
+   "path": "vehicle.state.flight.instruments.quantum_fuel",
+   "op": "<=",
+   "value": 0.15,
+   "rearm": 0.2,
+   "when": {
+    "all": [
+     {
+      "path": "$quantum_seen",
+      "op": "==",
+      "value": true
+     },
+     {
+      "path": "vehicle.state.power.engines",
+      "op": "==",
+      "value": true
+     }
+    ]
+   },
+   "severity": "warn",
+   "scope": "vehicle",
+   "cooldown_s": 120,
+   "debounce_s": 2,
+   "message": "Quantum fuel {pct}%",
+   "speech": "Quantum fuel low",
+   "sound": "warn",
+   "verified": false
+  },
+  {
+   "id": "shields_low",
+   "description": "Overall shield level at or below 25% while generators and emitters are powered (re-arms above 40%)",
+   "kind": "threshold",
+   "path": "vehicle.state.shields.level",
+   "op": "<=",
+   "value": 0.25,
+   "rearm": 0.4,
+   "when": {
+    "all": [
+     {
+      "path": "vehicle.state.power.shield_generators",
+      "op": "==",
+      "value": true
+     },
+     {
+      "path": "vehicle.state.power.shield_emitters",
+      "op": "==",
+      "value": true
+     }
+    ]
+   },
+   "severity": "warn",
+   "scope": "vehicle",
+   "cooldown_s": 15,
+   "debounce_s": 0.5,
+   "message": "Shields {pct}%",
+   "speech": "Shields low",
+   "sound": "warn",
+   "verified": true
+  },
+  {
+   "id": "shield_face_down",
+   "description": "A shield face reads 0 while the overall level is above 5% (a face tuned to its share is not DOWN)",
+   "kind": "threshold",
+   "path": "$shield_faces_down",
+   "op": ">=",
+   "value": 1,
+   "when": {
+    "path": "vehicle.state.power.shield_generators",
+    "op": "==",
+    "value": true
+   },
+   "severity": "warn",
+   "scope": "vehicle",
+   "cooldown_s": 10,
+   "debounce_s": 0.5,
+   "message": "Shield face down ({value:.0f})",
+   "speech": "Shield face down",
+   "sound": "warn",
+   "verified": false
+  },
+  {
+   "id": "shield_emitters_lost",
+   "description": "Shield emitters lost power while the generators stay on (not a deliberate shields-off toggle)",
+   "kind": "composite",
+   "all": [
+    {
+     "path": "vehicle.state.power.shield_emitters",
+     "op": "==",
+     "value": false
+    },
+    {
+     "path": "vehicle.state.power.shield_generators",
+     "op": "==",
+     "value": true
+    }
+   ],
+   "severity": "critical",
+   "scope": "vehicle",
+   "cooldown_s": 15,
+   "debounce_s": 1,
+   "message": "Shield emitters lost power",
+   "speech": "Shield emitters offline",
+   "sound": "critical",
+   "verified": false
+  },
+  {
+   "id": "hull_half",
+   "description": "Hull health at or below 50%",
+   "kind": "threshold",
+   "path": "vehicle.state.health",
+   "op": "<=",
+   "value": 0.5,
+   "rearm": 0.6,
+   "severity": "warn",
+   "scope": "vehicle",
+   "cooldown_s": 30,
+   "debounce_s": 0,
+   "message": "Hull {pct}%",
+   "speech": "Hull fifty percent",
+   "sound": "warn",
+   "verified": false
+  },
+  {
+   "id": "hull_critical",
+   "description": "Hull health at or below 25%",
+   "kind": "threshold",
+   "path": "vehicle.state.health",
+   "op": "<=",
+   "value": 0.25,
+   "rearm": 0.35,
+   "severity": "critical",
+   "scope": "vehicle",
+   "cooldown_s": 30,
+   "debounce_s": 0,
+   "supersedes": [
+    "hull_half"
+   ],
+   "message": "Hull critical {pct}%",
+   "speech": "Hull critical",
+   "sound": "critical",
+   "verified": false
+  },
+  {
+   "id": "missile_warning",
+   "description": "Missile annunciator goes MAJOR",
+   "kind": "transition",
+   "path": "vehicle.state.annunciators.misl",
+   "to": [
+    "MAJOR_ON",
+    "MAJOR_FLASHING"
+   ],
+   "severity": "critical",
+   "scope": "vehicle",
+   "cooldown_s": 5,
+   "debounce_s": 0,
+   "message": "Missile warning",
+   "speech": "Missile warning",
+   "sound": "critical",
+   "verified": true
+  },
+  {
+   "id": "hit_warning",
+   "description": "Hit annunciator goes MAJOR",
+   "kind": "transition",
+   "path": "vehicle.state.annunciators.hit",
+   "to": [
+    "MAJOR_ON",
+    "MAJOR_FLASHING"
+   ],
+   "severity": "warn",
+   "scope": "vehicle",
+   "cooldown_s": 15,
+   "debounce_s": 0,
+   "message": "Taking hits",
+   "speech": "Taking hits",
+   "sound": "warn",
+   "verified": true
+  },
+  {
+   "id": "proximity_warning",
+   "description": "Proximity annunciator goes MAJOR",
+   "kind": "transition",
+   "path": "vehicle.state.annunciators.prox",
+   "to": [
+    "MAJOR_ON",
+    "MAJOR_FLASHING"
+   ],
+   "severity": "warn",
+   "scope": "vehicle",
+   "cooldown_s": 10,
+   "debounce_s": 0,
+   "message": "Proximity warning",
+   "speech": "Proximity",
+   "sound": "warn",
+   "verified": true
+  },
+  {
+   "id": "oxygen_low",
+   "description": "Suit oxygen at or below 25% (current / max)",
+   "kind": "threshold",
+   "path": "$oxygen",
+   "op": "<=",
+   "value": 0.25,
+   "rearm": 0.35,
+   "severity": "critical",
+   "scope": "any",
+   "cooldown_s": 30,
+   "debounce_s": 1,
+   "message": "Oxygen {pct}%",
+   "speech": "Oxygen low",
+   "sound": "critical",
+   "verified": false
+  },
+  {
+   "id": "health_low",
+   "description": "Player health at or below 30 (of 100) while alive (death jumps straight to 0 in one frame: that is the corpse rule's job, not a 'low' callout)",
+   "kind": "threshold",
+   "path": "actor.vitals.health.current",
+   "op": "<=",
+   "value": 30,
+   "rearm": 40,
+   "when": {
+    "path": "actor.vitals.health.current",
+    "op": ">",
+    "value": 0
+   },
+   "severity": "critical",
+   "scope": "any",
+   "cooldown_s": 30,
+   "debounce_s": 0,
+   "message": "Health {value:.0f}",
+   "speech": "Health low",
+   "sound": "critical",
+   "verified": true
+  },
+  {
+   "id": "radiation",
+   "description": "Ambient radiation above 0 for 2 s",
+   "kind": "threshold",
+   "path": "actor.environment.ambient_radiation_rate",
+   "op": ">",
+   "value": 0,
+   "rearm": 0,
+   "severity": "warn",
+   "scope": "any",
+   "cooldown_s": 60,
+   "debounce_s": 2,
+   "message": "Radiation {value:.2f}",
+   "speech": "Radiation detected",
+   "sound": "warn",
+   "verified": false
+  },
+  {
+   "id": "unbreathable",
+   "description": "Atmosphere becomes unbreathable while on foot (also when stepping out into it)",
+   "kind": "edge",
+   "path": "actor.environment.breathable_atmosphere",
+   "to": false,
+   "on_entry": true,
+   "severity": "warn",
+   "scope": "on_foot",
+   "cooldown_s": 30,
+   "debounce_s": 1.5,
+   "message": "Unbreathable atmosphere",
+   "speech": "Unbreathable atmosphere",
+   "sound": "warn",
+   "verified": false
+  },
+  {
+   "id": "gear_overspeed",
+   "description": "Landing gear down above 120 m/s while airborne",
+   "kind": "composite",
+   "all": [
+    {
+     "path": "vehicle.state.flight.state.gear",
+     "op": "==",
+     "value": "DEPLOYED"
+    },
+    {
+     "path": "vehicle.state.flight.instruments.speed",
+     "op": ">",
+     "value": 120
+    },
+    {
+     "path": "vehicle.state.flight.state.is_landed",
+     "op": "==",
+     "value": false
+    }
+   ],
+   "severity": "warn",
+   "scope": "vehicle",
+   "cooldown_s": 30,
+   "debounce_s": 1,
+   "message": "Gear down at speed",
+   "speech": "Gear down, overspeed",
+   "sound": "warn",
+   "verified": true
+  },
+  {
+   "id": "g_load",
+   "description": "G-load at or above 9 G with G-safe off",
+   "kind": "composite",
+   "all": [
+    {
+     "path": "vehicle.state.flight.instruments.g_meter.current",
+     "op": ">=",
+     "value": 9
+    },
+    {
+     "path": "vehicle.state.flight.settings.ifcs_g_safe.active",
+     "op": "==",
+     "value": false
+    }
+   ],
+   "severity": "warn",
+   "scope": "vehicle",
+   "cooldown_s": 20,
+   "debounce_s": 0.3,
+   "message": "High G, G-safe off",
+   "speech": "G load",
+   "sound": "warn",
+   "verified": true
+  },
+  {
+   "id": "leaving_armistice",
+   "description": "Game.log: leaving an armistice zone",
+   "kind": "event",
+   "event": "ZONE",
+   "detail_re": "(?i)^(leaving|left|exit\\w*)\\b.*armistice",
+   "severity": "info",
+   "scope": "any",
+   "cooldown_s": 10,
+   "message": "Leaving armistice",
+   "speech": "Leaving armistice",
+   "sound": "info",
+   "verified": true
+  },
+  {
+   "id": "session_join",
+   "description": "Game.log: joined a shard / shard changed (toast only)",
+   "kind": "event",
+   "event": [
+    "SESSION_JOIN",
+    "SESSION_SHARD_CHANGE"
+   ],
+   "severity": "info",
+   "scope": "any",
+   "cooldown_s": 5,
+   "message": "Shard: {detail}",
+   "speech": null,
+   "sound": null,
+   "verified": true
+  },
+  {
+   "id": "qt_arrived",
+   "description": "Game.log: your own ship arrived from quantum travel",
+   "kind": "event",
+   "event": "QT_ARRIVED",
+   "match": {
+    "self": true
+   },
+   "severity": "info",
+   "scope": "any",
+   "cooldown_s": 5,
+   "message": "Quantum arrival",
+   "speech": "Arrived",
+   "sound": "info",
+   "verified": true
+  },
+  {
+   "id": "you_died",
+   "description": "Telemetry: your own death event (GAME_EVENT_TYPE_ACTOR_DEAD)",
+   "kind": "event",
+   "event": "GAME_EVENT_TYPE_ACTOR_DEAD",
+   "severity": "critical",
+   "scope": "any",
+   "cooldown_s": 30,
+   "message": "You died",
+   "speech": "You died",
+   "sound": "critical",
+   "verified": false
+  },
+  {
+   "id": "you_down",
+   "description": "Telemetry: you are downed / incapacitated (GAME_EVENT_TYPE_ACTOR_DOWNED)",
+   "kind": "event",
+   "event": "GAME_EVENT_TYPE_ACTOR_DOWNED",
+   "severity": "critical",
+   "scope": "any",
+   "cooldown_s": 30,
+   "message": "You are down",
+   "speech": "You are down",
+   "sound": "critical",
+   "verified": false
+  },
+  {
+   "id": "corpse",
+   "description": "Game.log: any nearby corpse's item list (no owner in the line, e.g. a player you killed). Not a death signal; off by default.",
+   "kind": "event",
+   "event": "CORPSE_ITEMS",
+   "severity": "info",
+   "scope": "any",
+   "cooldown_s": 30,
+   "message": "Corpse nearby: {count} items",
+   "speech": null,
+   "sound": "info",
+   "verified": true,
+   "enabled": false
+  }
+ ]
+}

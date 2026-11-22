@@ -1,0 +1,80 @@
+{
+ "$comment": "Shield face layout by the length of vehicle.state.shields.faces (VARIABLE per ship; NOT the generator count). Verified 2026-11-21: MISC_Prospector len 1 (bubble, 3 generators), RSI_Perseus len 4 (quadrants, 2 generators). Face ORDER is unverified: labels stay F1..Fn until confirmed. ring = face indexes drawn as ring segments clockwise from the top (front); pips = face indexes drawn as top/bottom markers inside the ring. Any other count renders as N equal ring segments labelled F1..Fn. overrides_by_class: {CLASS: {layout, labels, ...}} wins over by_count for that telemetry class_name. Served by the bridge at GET /api/shield-faces; the OpenDeck plugin bundles a fallback copy.",
+ "version": 1,
+ "by_count": {
+  "1": {
+   "layout": "bubble",
+   "labels": [
+    "ALL"
+   ],
+   "ring": [
+    0
+   ],
+   "verified": true
+  },
+  "2": {
+   "layout": "front_back",
+   "labels": [
+    "F1",
+    "F2"
+   ],
+   "ring": [
+    0,
+    1
+   ],
+   "verified": false
+  },
+  "4": {
+   "layout": "quadrant",
+   "labels": [
+    "F1",
+    "F2",
+    "LEFT",
+    "F4"
+   ],
+   "ring": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "verified": false,
+   "note": "4 faces verified on RSI_Perseus; which index is front/left/right/back is not",
+   "verified_faces": {
+    "2": "LEFT"
+   },
+   "order_note": "Index 2 (F3) = LEFT, verified 2026-11-21 on ANVL_Paladin (PTU 5.0) by tuning Front 60 / Left 220 / Right 60 / Back 60 \u2192 faces [0.6,0.6,1.0,0.6]. F1/F2/F4 are front/right/back in unknown order."
+  },
+  "6": {
+   "layout": "quadrant_top_bottom",
+   "labels": [
+    "F1",
+    "F2",
+    "F3",
+    "F4",
+    "F5",
+    "F6"
+   ],
+   "ring": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "pips": [
+    4,
+    5
+   ],
+   "verified": false,
+   "note": "6-face ships not yet observed; top/bottom indexes are a guess"
+  }
+ },
+ "overrides_by_class": {},
+ "tuning": {
+  "verified": true,
+  "meaning": "At full charge each face value = that face's tuning share / 100% (balanced = 1.0), clamped to 1.0. Shares always total 4.0 (400%) on 4-face ships.",
+  "evidence": "ANVL_Paladin PTU 5.0: 80/160/80/80 \u2192 [0.8,0.8,1.0,0.8]; 60/220/60/60 \u2192 [0.6,0.6,1.0,0.6]; overall level regenerated to 1.0 while tuned-down faces held at their share.",
+  "infer_boosted": "If exactly one face reads 1.0 and the overall level is 1.0, its share = 4.0 - sum(other faces). With two or more faces at 1.0 the shares are ambiguous.",
+  "caveat": "A boosted face reads 1.0 until its charge drops below the baseline (100%) capacity, so damage to a boosted face is hidden at first. Charge and tuning are mixed in one value; tuning is only readable at full overall charge."
+ }
+}

@@ -1,0 +1,42 @@
+# Python / uv
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Local intermediates (recordings contain wallet balance + entity ids; generated stubs)
+.tmp/
+scratch/
+*.jsonl
+
+# Editors / tools
+.claude/settings.local.json
+**/.obsidian/
+.idea/
+.vscode/
+.DS_Store
+
+# Secrets
+.env
+.env.*
+
+# CIG-derived schema: extracted at runtime from the installed game (scgameapi/schema.py), never committed
+proto/
+*.proto
+
+# Test / lint caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+node_modules/
+
+# OS / editor junk
+Thumbs.db
+ehthumbs.db
+desktop.ini
+*.swp
+*~

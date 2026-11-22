@@ -1,0 +1,2775 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>SC Telemetry</title>
+<link rel="icon" href="/favicon.ico" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Orbitron:wght@500;700;900&display=swap">
+<style>
+:root{
+  --color-accent:#3b82f6; --color-accent-rgb:59,130,246;
+  --color-bg-base:#020617; --color-bg-card:#0f172a; --color-bg-surface-elevated:#1e293b;
+  --color-text-base:#f8fafc; --color-text-muted:#94a3b8;
+  --color-border:color-mix(in srgb,var(--color-text-base) 15%,transparent);
+  --color-frame:color-mix(in srgb,var(--color-accent) 30%,var(--color-border));
+  --card-bg:color-mix(in srgb,var(--color-bg-card) 85%,transparent);
+  --telemetry-nominal:#22c55e; --telemetry-warning:#eab308; --telemetry-critical:#ef4444; --telemetry-info:#3b82f6;
+  --telemetry-nominal-ink:color-mix(in srgb,var(--telemetry-nominal),white 40%);
+  --telemetry-warning-ink:color-mix(in srgb,var(--telemetry-warning),white 40%);
+  --telemetry-critical-ink:color-mix(in srgb,var(--telemetry-critical),white 40%);
+  --telemetry-info-ink:color-mix(in srgb,var(--telemetry-info),white 40%);
+  --muted-ink:var(--color-text-muted);
+  --glow-sm:0 0 8px rgba(var(--color-accent-rgb),.4);
+  --glow-md:0 0 12px rgba(var(--color-accent-rgb),.4);
+  --glow-lg:0 0 20px rgba(var(--color-accent-rgb),.3);
+  --font-display:"Orbitron","Eurostile","Bank Gothic",ui-sans-serif,system-ui,sans-serif;
+  --font-body:"Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,"SFMono-Regular","Cascadia Mono",Menlo,Consolas,monospace;
+  --cut-md:12px; --cut-sm:6px;
+  --gap:16px; --pad:16px; --meter-label:76px; --meter-value:6ch; --chart-h:44px;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{color-scheme:dark}
+body{
+  margin:0;min-height:100vh;color:var(--color-text-base);font:14px/1.45 var(--font-body);
+  background-color:var(--color-bg-base);
+  background-image:
+    linear-gradient(to right,rgba(var(--color-accent-rgb),.05) 1px,transparent 1px),
+    linear-gradient(to bottom,rgba(var(--color-accent-rgb),.05) 1px,transparent 1px);
+  background-size:32px 32px;
+  -webkit-font-smoothing:antialiased;
+}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:50;
+  background:repeating-linear-gradient(to bottom,rgba(255,255,255,.025) 0 1px,transparent 1px 3px)}
+:focus-visible{outline:2px solid var(--color-accent);outline-offset:2px;box-shadow:var(--glow-sm)}
+.micro{font:700 10px/1.2 var(--font-display);letter-spacing:.08em;text-transform:uppercase;color:var(--color-text-muted)}
+.mono{font-family:var(--font-mono)}
+
+/* chamfer cards: clip the box, draw the 1px frame on an evenodd pseudo so the cut edge keeps a line */
+.chamfer-md,.chamfer-sm{position:relative;--c:var(--cut-md);
+  clip-path:polygon(var(--c) 0,calc(100% - var(--c)) 0,100% var(--c),100% calc(100% - var(--c)),calc(100% - var(--c)) 100%,var(--c) 100%,0 calc(100% - var(--c)),0 var(--c))}
+.chamfer-sm{--c:var(--cut-sm)}
+.chamfer-md::before,.chamfer-sm::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:1;background:var(--frame,var(--color-frame));
+  clip-path:polygon(evenodd,
+    var(--c) 0,calc(100% - var(--c)) 0,100% var(--c),100% calc(100% - var(--c)),calc(100% - var(--c)) 100%,var(--c) 100%,0 calc(100% - var(--c)),0 var(--c),var(--c) 0,
+    var(--c) 1px,1px var(--c),1px calc(100% - var(--c)),var(--c) calc(100% - 1px),calc(100% - var(--c)) calc(100% - 1px),calc(100% - 1px) calc(100% - var(--c)),calc(100% - 1px) var(--c),calc(100% - var(--c)) 1px,var(--c) 1px)}
+
+/* header */
+.top{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:8px max(16px,calc((100% - 1800px) / 2 + 16px));
+  background:color-mix(in srgb,var(--color-bg-base) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--color-frame)}
+.top h1{margin:0;font:900 16px/1 var(--font-display);letter-spacing:.18em;text-shadow:var(--glow-sm)}
+.top h1 span{color:var(--color-accent)}
+/* row 2: link meta (left) + session meta (right-aligned group); each wraps as a unit */
+.top-meta{order:2;flex:1 1 100%;display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 24px;min-width:0}
+.meta{display:flex;flex-wrap:wrap;gap:4px 16px;align-items:baseline;min-width:0}
+.meta-sess{margin-left:auto;justify-content:flex-end}
+@media (max-width:759px){.meta-sess{margin-left:0;justify-content:flex-start}}
+/* phones: fixed 3-col grid so no item is orphaned on its own row (5 link items = 3+2, session = 3) */
+@media (max-width:419px){.top-meta{gap:4px}.meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px 8px;width:100%}.meta .kv1{overflow:hidden}}
+.meta .kv1{display:inline-flex;gap:6px;align-items:baseline;min-width:0}
+.meta .kv1 b{font:500 12px var(--font-mono);color:var(--color-text-base);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:44ch}
+
+/* badges (StarOrg Badge) */
+.badge{--tone:var(--color-text-muted);--ink:var(--muted-ink);display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+  font:700 10px/1 var(--font-display);letter-spacing:.08em;text-transform:uppercase;padding:4px 8px;border-radius:999px;color:var(--ink);
+  background:color-mix(in srgb,var(--tone),transparent 80%);border:1px solid color-mix(in srgb,var(--tone),transparent 70%)}
+.badge[data-tone=nominal]{--tone:var(--telemetry-nominal);--ink:var(--telemetry-nominal-ink)}
+.badge[data-tone=warning]{--tone:var(--telemetry-warning);--ink:var(--telemetry-warning-ink)}
+.badge[data-tone=critical]{--tone:var(--telemetry-critical);--ink:var(--telemetry-critical-ink)}
+.badge[data-tone=info]{--tone:var(--telemetry-info);--ink:var(--telemetry-info-ink)}
+.badge[data-tone=muted]{--tone:#64748b;--ink:var(--color-text-muted)}
+.badge .dot{width:6px;height:6px;border-radius:50%;background:var(--tone);flex:none}
+.badge[data-live] .dot{animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 var(--tone)}50%{opacity:.5;box-shadow:0 0 0 4px transparent}}
+.badges{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+
+/* chips (RSI+ chip) */
+/* chip groups: even grid, equal-height cells; label wraps rather than ellipsis, state sits right */
+.chips{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(min(168px,100%),1fr));align-items:stretch}
+.chips{grid-auto-flow:row dense}
+.chips>.empty-note{grid-column:1/-1}
+.chips>.chip-wide{grid-column:span 2}  /* long labels take two cells instead of wrapping */
+/* span 2 only when the group really has 2+ columns (2*168+8): otherwise it would add an implicit column */
+.chips{container-type:inline-size}
+@container (max-width:343px){.chips>.chip-wide{grid-column:auto}}
+/* weapon rows: 3 short chips (POWER/READY/PRESET) side by side; one column on narrow phones so words never split */
+.wpn .chips{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:399px){.wpn .chips{grid-template-columns:minmax(0,1fr)}}
+.chips>.chip{display:flex;justify-content:space-between;min-height:28px;min-width:0;white-space:normal;line-height:16px}
+.chips>.chip .c-l{min-width:0;overflow-wrap:break-word;word-break:normal}
+.chips>.chip .c-s{flex:none;white-space:nowrap}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;white-space:nowrap;--c:var(--cut-sm);
+  font:700 10px/1.2 var(--font-display);letter-spacing:.08em;text-transform:uppercase;
+  color:var(--telemetry-info-ink);background:rgba(var(--color-accent-rgb),.08);border:1px solid rgba(var(--color-accent-rgb),.35);border-radius:4px}
+.chip b{font-weight:900;opacity:.85}
+.chip[data-s=on]{color:var(--telemetry-nominal-ink);background:color-mix(in srgb,var(--telemetry-nominal),transparent 88%);border-color:color-mix(in srgb,var(--telemetry-nominal),transparent 60%)}
+.chip[data-s=en]{color:var(--telemetry-info-ink);background:transparent;border:1px dashed rgba(var(--color-accent-rgb),.6)}
+.chip[data-s=off]{color:var(--color-text-muted);background:rgba(148,163,184,.05);border-color:rgba(148,163,184,.18)}
+.chip[data-s=warn]{color:var(--telemetry-warning-ink);background:color-mix(in srgb,var(--telemetry-warning),transparent 86%);border-color:color-mix(in srgb,var(--telemetry-warning),transparent 55%)}
+.chip[data-s=crit]{color:var(--telemetry-critical-ink);background:color-mix(in srgb,var(--telemetry-critical),transparent 86%);border-color:color-mix(in srgb,var(--telemetry-critical),transparent 55%)}
+.chip[data-s=none]{color:var(--color-text-muted);border-color:var(--color-border);background:none}
+.legend{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:8px}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend i{width:10px;height:10px;border-radius:2px;display:inline-block;border:1px solid}
+
+main{padding:var(--gap);display:flex;flex-direction:column;gap:var(--gap);max-width:1800px;margin:0 auto}
+
+/* hero strip */
+.hero{display:grid;gap:var(--gap);grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:1fr}
+@media (max-width:420px){.hero{grid-template-columns:minmax(0,1fr)}}
+@media (min-width:720px){.hero{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (min-width:1280px){.hero{grid-template-columns:repeat(6,minmax(0,1fr))}}
+/* every tile: label row / value row / one-line sub / fixed chart box pinned to the bottom */
+.tile{background:var(--card-bg);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);padding:12px var(--pad);min-width:0;
+  display:grid;grid-template-rows:20px 36px 16px 1fr;row-gap:4px}
+.tile-head{display:flex;justify-content:space-between;align-items:center;gap:8px;height:20px;min-width:0}
+.tile-val{display:flex;align-items:baseline;gap:6px;min-width:0;overflow:hidden}
+.tile-val .v{font:700 30px/36px var(--font-display);letter-spacing:.02em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tile-val .u{font:500 12px var(--font-mono);color:var(--color-text-muted)}
+.tile-sub{font:400 12px/16px var(--font-mono);color:var(--color-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tile .chart{align-self:end;height:var(--chart-h);margin-top:8px;background:rgba(var(--color-accent-rgb),.05)}
+.spark{position:relative}
+.spark canvas{display:block;width:100%;height:100%;cursor:crosshair}
+.tip{position:absolute;bottom:calc(100% + 4px);transform:translateX(-50%);pointer-events:none;z-index:5;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;
+  font:500 12px var(--font-mono);padding:3px 7px;background:color-mix(in srgb,var(--color-bg-card) 95%,transparent);
+  border:1px solid rgba(var(--color-accent-rgb),.5);border-radius:4px;box-shadow:var(--glow-sm)}
+.heart{color:var(--telemetry-critical);display:inline-block;font-size:14px;transform-origin:center}
+.heart.on{animation:beat var(--beat,1s) ease-out infinite}
+@keyframes beat{0%{transform:scale(1)}12%{transform:scale(1.35)}24%{transform:scale(1)}36%{transform:scale(1.18)}50%,100%{transform:scale(1)}}
+.compass-glyph{width:20px;height:20px}
+.tape{display:block;width:100%}
+.tape text{font:500 9px var(--font-mono);fill:var(--color-text-muted)}
+.tape text.card{font:700 10px var(--font-display);fill:var(--color-text-base)}
+
+/* panels */
+.panels{display:grid;gap:var(--gap);grid-template-columns:minmax(0,1fr);align-items:stretch}
+/* masonry without JS: cards live in fixed column stacks (stable, no rebalancing jumps while data streams).
+   1 col: stacks in sequence. 2 cols: a|b, then c spans below split into c1|c2 (same column edges). 3 cols: a|b|c. */
+.stack{display:flex;flex-direction:column;gap:var(--gap);min-width:0}
+/* shorter stack's last card grows to meet the longest one: no empty band before the next row */
+.stack>.panel:last-child{flex-grow:1}
+@media (min-width:760px){
+  .panels{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .stack-c{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch}
+}
+@media (min-width:1360px){
+  .panels{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .stack-c{grid-column:auto;display:flex}
+}
+.panel{background:var(--card-bg);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);padding:var(--pad);min-width:0}
+.panel.wide{grid-column:1/-1}
+.ph{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;min-height:32px;margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--color-border)}
+.ph h2{margin:0;font:700 13px/1 var(--font-display);letter-spacing:.16em;text-transform:uppercase;color:var(--color-text-base)}
+.ph h2::before{content:"";display:inline-block;width:6px;height:6px;margin-right:8px;background:var(--color-accent);box-shadow:var(--glow-sm);transform:rotate(45deg) translateY(-2px)}
+.sub-h{margin:16px 0 8px}
+.empty-note{font:400 13px var(--font-body);color:var(--color-text-muted);padding:4px 0}
+
+.ident{margin-bottom:12px;min-width:0}
+.ident-name{font:700 18px/1.2 var(--font-display);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ident-sub{margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* key/value list: labels never wrap, values shrink + ellipsis */
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:8px 16px;margin:16px 0 0;align-items:center}
+.kv dt{font:400 13px var(--font-body);color:var(--color-text-muted);white-space:nowrap}
+.kv dd{margin:0;min-width:0;text-align:right;font:500 13px var(--font-mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.kv dd .badge{vertical-align:middle}
+.kv dd.warn{color:var(--telemetry-warning-ink)}
+
+/* meters */
+/* one label + one value column width for every meter on the page so bars line up across cards */
+.meter{display:grid;grid-template-columns:var(--meter-label) minmax(0,1fr) var(--meter-value);gap:12px;align-items:center;margin:8px 0;--sev:var(--color-text-muted)}
+.meter:first-child{margin-top:0}
+.meter .m-label{font:400 13px var(--font-body);color:var(--color-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meter .m-track{height:8px;background:color-mix(in srgb,var(--sev),transparent 82%);overflow:hidden;clip-path:polygon(3px 0,100% 0,calc(100% - 3px) 100%,0 100%)}
+.meter .m-fill{display:block;height:100%;background:var(--sev);transform-origin:left;transform:scaleX(0);transition:transform .15s linear}
+.meter output{font:500 13px var(--font-mono);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ship-meters{margin-top:16px}
+.meter[data-sev=nominal]{--sev:var(--telemetry-nominal)}
+.meter[data-sev=warning]{--sev:var(--telemetry-warning)}
+.meter[data-sev=critical]{--sev:var(--telemetry-critical)}
+.meter[data-sev=none] .m-track{background:rgba(148,163,184,.1)}
+
+/* shield faces: layout by faces[] length (1 bubble, 2 front/back, 4 quadrants, 6 quad + top/bottom, N segments) */
+.faces{display:grid;grid-template-columns:112px minmax(0,1fr);gap:16px;align-items:center;margin-top:16px}
+.sh-ring{width:112px;height:112px;display:block}
+.sh-ring .trk{fill:none;stroke:rgba(148,163,184,.12);stroke-width:10}
+.sh-ring .seg{fill:none;stroke-width:10;stroke:var(--sev,#64748b);transition:stroke-opacity .15s linear}
+.sh-ring .pip{stroke-width:2;stroke:var(--sev,#64748b);fill:color-mix(in srgb,var(--sev,#64748b),transparent 60%)}
+.sh-ring [data-sev=nominal]{--sev:var(--telemetry-nominal)}
+.sh-ring [data-sev=warning]{--sev:var(--telemetry-warning)}
+.sh-ring [data-sev=critical]{--sev:var(--telemetry-critical)}
+.sh-ring [data-sev=none]{--sev:#64748b}
+.sh-ring text{font:700 8px var(--font-display);fill:var(--color-text-muted);letter-spacing:.06em}
+.sh-ring text.c2{font:700 13px var(--font-mono);fill:var(--color-text-base)}
+.face-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:6px;min-width:0}
+.face{display:flex;justify-content:space-between;gap:6px;padding:5px 8px;background:rgba(var(--color-accent-rgb),.06);--frame:rgba(var(--color-accent-rgb),.3);min-width:0}
+.face .f-v{font:700 13px var(--font-mono);text-align:right;font-variant-numeric:tabular-nums}
+.face[data-sev=warning] .f-v{color:var(--telemetry-warning-ink)}
+.face[data-sev=critical]{--frame:color-mix(in srgb,var(--telemetry-critical),transparent 30%);background:color-mix(in srgb,var(--telemetry-critical),transparent 86%)}
+.face[data-sev=critical] .f-v{color:var(--telemetry-critical-ink)}
+.face-note{grid-column:1/-1;margin:0;font:400 12px var(--font-body);color:var(--color-text-muted)}
+@media (max-width:380px){.faces{grid-template-columns:1fr}.sh-ring{margin:0 auto}}
+
+/* annunciators */
+.ann-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.ann{position:relative;padding:7px 4px 6px;text-align:center;--frame:rgba(148,163,184,.25);background:rgba(148,163,184,.06);color:var(--color-text-muted)}
+.ann .a-code{display:block;font:900 12px/1.1 var(--font-display);letter-spacing:.08em}
+.ann .a-state{display:block;margin-top:3px;color:inherit}
+.ann .a-bang{display:none;position:absolute;top:2px;right:6px;font:900 12px var(--font-display)}
+.ann[data-s=nominal]{color:var(--telemetry-nominal-ink);background:color-mix(in srgb,var(--telemetry-nominal),transparent 86%);--frame:color-mix(in srgb,var(--telemetry-nominal),transparent 50%)}
+.ann[data-s=minor]{color:var(--telemetry-warning-ink);background:color-mix(in srgb,var(--telemetry-warning),transparent 82%);--frame:color-mix(in srgb,var(--telemetry-warning),transparent 40%)}
+.ann[data-s=major]{color:var(--telemetry-critical-ink);background:color-mix(in srgb,var(--telemetry-critical),transparent 78%);--frame:color-mix(in srgb,var(--telemetry-critical),transparent 30%);box-shadow:inset 0 0 12px color-mix(in srgb,var(--telemetry-critical),transparent 60%)}
+.ann[data-flash]{animation:blink 1s steps(2,jump-none) infinite}
+.ann[data-flash][data-s=major]{animation-duration:.5s}
+@keyframes blink{50%{opacity:.35}}
+
+/* weapons */
+.wpn{padding:8px 12px;margin-bottom:8px;background:rgba(var(--color-accent-rgb),.05);min-width:0;--frame:var(--color-border)}
+.wpn-name{font:500 14px var(--font-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:8px}
+.counters{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
+.counter{padding:8px 12px;background:rgba(var(--color-accent-rgb),.06);--frame:rgba(var(--color-accent-rgb),.35)}
+.counter .cv{font:700 24px/1.1 var(--font-display);font-variant-numeric:tabular-nums}
+.counter[data-sev=warning]{--frame:color-mix(in srgb,var(--telemetry-warning),transparent 40%)}
+.counter[data-sev=warning] .cv{color:var(--telemetry-warning-ink)}
+.counter[data-sev=critical]{--frame:color-mix(in srgb,var(--telemetry-critical),transparent 30%)}
+.counter[data-sev=critical] .cv{color:var(--telemetry-critical-ink)}
+
+/* flight log */
+.log{list-style:none;margin:0;padding:0;max-height:340px;overflow:auto}
+.log li{display:grid;grid-template-columns:max-content 1.4em minmax(0,1fr);gap:8px;align-items:start;padding:5px 2px;border-bottom:1px solid var(--color-border)}
+.log time{font:400 12px var(--font-mono);color:var(--color-text-muted)}
+.log .ico{text-align:center;font-size:12px}
+.log .msg{font:500 13px var(--font-body);white-space:normal;overflow-wrap:anywhere;min-width:0}
+.log li[data-sev=nominal] .ico{color:var(--telemetry-nominal)}
+.log li[data-sev=warning] .ico,.log li[data-sev=warning] .msg{color:var(--telemetry-warning-ink)}
+.log li[data-sev=critical] .ico,.log li[data-sev=critical] .msg{color:var(--telemetry-critical-ink)}
+.log li[data-sev=info] .ico{color:var(--telemetry-info)}
+.log li[data-sev=event] .ico{color:#c084fc}
+.log li[data-sev=session] .ico{color:var(--color-accent)}
+.log li.none{display:block;color:var(--color-text-muted);font-size:13px}
+
+/* session (Game.log) */
+.meta .kv1.sess b{color:var(--telemetry-info-ink)}
+.reveal{font:500 12px var(--font-mono);color:var(--telemetry-info-ink);background:none;border:1px dashed rgba(var(--color-accent-rgb),.5);
+  border-radius:4px;padding:1px 6px;cursor:pointer;min-height:22px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.reveal:hover{box-shadow:var(--glow-sm)}
+.reveal[aria-pressed=true]{border-style:solid;color:var(--color-text-base);white-space:pre-line;overflow-wrap:anywhere;text-align:right}
+.kv dd:has(> .reveal[aria-pressed=true]){white-space:normal}
+#sessBody[data-idle] .kv,#sessBody[data-idle] .ident,.meta[data-idle] .kv1.sess,#nbBody[data-idle] .nearby,#pplBody[data-idle] .people{opacity:.55}
+.reveal:focus-visible{outline:2px solid var(--color-accent);outline-offset:1px}
+
+/* signals (Game.log): zone badge + nearby ships */
+#zoneBadge{max-width:100%;min-width:0}
+#zoneBadge .zt{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.nearby{list-style:none;margin:0;padding:0;max-height:340px;overflow:auto}
+.nearby li{display:grid;grid-template-columns:minmax(0,1fr) max-content max-content;gap:10px;align-items:center;padding:5px 2px;border-bottom:1px solid var(--color-border)}
+.nearby .n-main{min-width:0}
+.nearby .n-name{display:block;font:500 13px var(--font-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.nearby .n-sub{display:block;font:400 11px/1.35 var(--font-mono);color:var(--color-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.nearby .n-cnt{cursor:help}
+.nearby .n-cnt{font:500 12px var(--font-mono);color:var(--telemetry-info-ink);font-variant-numeric:tabular-nums}
+.nearby .n-ago{font:400 12px var(--font-mono);color:var(--color-text-muted);min-width:5ch;text-align:right;font-variant-numeric:tabular-nums}
+.nearby li.own .n-name{color:var(--telemetry-nominal-ink)}
+.nearby li.own .badge{margin-left:6px;vertical-align:middle}
+.nb-note{margin:10px 0 0;font:400 12px/1.4 var(--font-body);color:var(--color-text-muted)}
+
+/* people (Game.log handles, opt-in) */
+.ppl-ctl{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin-bottom:10px}
+.ppl-tg{display:inline-flex;gap:8px;align-items:center;cursor:pointer;font:500 13px var(--font-body);min-height:32px}
+.ppl-tg input{width:18px;height:18px;flex:none;accent-color:var(--color-accent);margin:0}
+.ppl-tg input:disabled+span{color:var(--color-text-muted)}
+.ppl-ctl .btn{margin-left:auto}
+.people{list-style:none;margin:0;padding:0;max-height:360px;overflow:auto}
+.people li{display:grid;grid-template-columns:minmax(0,1fr) max-content max-content;gap:4px 10px;align-items:center;padding:6px 2px;border-bottom:1px solid var(--color-border)}
+.people .p-main{min-width:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.people .p-name{font:500 13px var(--font-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:100%;color:var(--color-text-base)}
+.people a.p-name{color:var(--telemetry-info-ink);text-decoration:none;border-bottom:1px dotted rgba(var(--color-accent-rgb),.6)}
+.people a.p-name:hover{border-bottom-style:solid}
+.people .p-sub{grid-column:1/-1;font:400 11px/1.4 var(--font-mono);color:var(--color-text-muted);overflow-wrap:anywhere}
+.people .p-ago{font:400 12px var(--font-mono);color:var(--color-text-muted);min-width:5ch;text-align:right;font-variant-numeric:tabular-nums}
+.people .badge{font-size:9px;padding:1px 6px}
+.people li.self .p-name{color:var(--telemetry-nominal-ink)}
+.people li[data-left] .p-name{color:var(--color-text-muted);text-decoration:line-through}
+.ppl-counts{font:500 13px var(--font-mono);color:var(--color-text-base);margin:2px 0 6px}
+
+/* force feedback */
+.ff-axes{display:grid;grid-template-columns:max-content repeat(3,minmax(0,1fr));gap:4px 12px;margin-top:10px;font:500 13px var(--font-mono);text-align:right}
+.ff-axes .h{text-align:right}
+.ff-axes .rl{text-align:left;font:400 13px var(--font-body);color:var(--color-text-muted)}
+
+/* raw */
+details summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+details summary::-webkit-details-marker{display:none}
+details summary .caret{transition:transform .15s}
+details[open] summary .caret{transform:rotate(90deg)}
+.btn{font:700 10px var(--font-display);letter-spacing:.08em;text-transform:uppercase;color:var(--telemetry-info-ink);
+  background:rgba(var(--color-accent-rgb),.1);border:1px solid rgba(var(--color-accent-rgb),.45);padding:7px 12px;cursor:pointer;border-radius:4px;min-height:32px}
+.btn:hover{box-shadow:var(--glow-md)}
+pre.raw{font:400 12px/1.45 var(--font-mono);max-height:420px;overflow:auto;background:rgba(2,6,23,.7);padding:10px;margin:10px 0 0;border:1px solid var(--color-border);white-space:pre}
+
+/* controls (game action triggers) */
+.ctl-note{margin:0 0 12px;font:400 13px/1.45 var(--font-body);color:var(--color-text-muted);overflow-wrap:anywhere}
+.ctl-note[data-tone=warning]{color:var(--telemetry-warning-ink)}
+.ctl-note[data-tone=critical]{color:var(--telemetry-critical-ink)}
+/* notes (known issue / unverified / no-hardware) of the focused or last-tapped button: tooltips don't reach touch */
+.ctl-info{position:sticky;bottom:0;z-index:2;margin:12px 0 0;padding:8px 12px;font:400 13px/1.45 var(--font-body);color:var(--color-text-base);
+  background:var(--color-bg-card);border-top:1px solid var(--color-border);white-space:pre-line;overflow-wrap:anywhere}
+.ctl-info b{font:700 10px/1.2 var(--font-display);letter-spacing:.08em;text-transform:uppercase;color:var(--color-text-muted);margin-right:6px}
+.ctl-note code{font:500 12px var(--font-mono);color:var(--color-text-base);overflow-wrap:anywhere}
+/* masonry flow: small groups share columns instead of each grid row being as tall as its largest group */
+.ctl-groups{columns:300px;column-gap:20px}
+.ctl-group{min-width:0;break-inside:avoid;margin-bottom:4px;padding-top:12px}  /* padding (not margin) survives column breaks */
+.ctl-group.full,.ctl-danger{column-span:all}
+.ctl-group>.sub-h{display:flex;align-items:center;gap:8px;margin:0 0 8px}
+details.ctl-group>summary{margin:0 0 8px;min-height:32px}
+details.ctl-group>summary .micro{color:var(--color-text-base)}
+.ctl-count{font:500 11px var(--font-mono);color:var(--color-text-muted);letter-spacing:0;text-transform:none}
+.ctl-grid{display:grid;gap:6px;grid-template-columns:repeat(auto-fill,minmax(min(132px,100%),1fr))}
+.ctl-btn{--frame:rgba(var(--color-accent-rgb),.35);position:relative;display:flex;flex-direction:column;justify-content:center;gap:2px;
+  min-width:0;min-height:44px;padding:7px 10px;margin:0;border:0;cursor:pointer;text-align:left;color:var(--color-text-base);
+  background:rgba(var(--color-accent-rgb),.07);font:500 13px/1.25 var(--font-body);-webkit-tap-highlight-color:transparent}
+.ctl-btn .ctl-l{white-space:normal;overflow-wrap:anywhere;hyphens:auto}
+.ctl-btn .ctl-s{min-height:12px;color:var(--color-text-muted);white-space:normal;overflow-wrap:anywhere}
+.ctl-danger{margin-top:16px;padding:16px 12px 12px;--frame:color-mix(in srgb,var(--telemetry-critical),transparent 35%);
+  background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--telemetry-critical),transparent 93%) 0 10px,transparent 10px 20px)}
+.ctl-danger summary .micro{color:var(--telemetry-critical-ink)!important}
+.ctl-danger .ctl-warn{margin:0 0 10px;font:400 13px var(--font-body);color:var(--telemetry-critical-ink)}
+/* idle looks; hover only while idle so it never masks a result/armed state */
+.ctl-danger .ctl-btn{--frame:color-mix(in srgb,var(--telemetry-critical),transparent 45%);background:color-mix(in srgb,var(--telemetry-critical),transparent 90%)}
+.ctl-btn:hover:not(:disabled):not([data-state]){background:rgba(var(--color-accent-rgb),.16);--frame:rgba(var(--color-accent-rgb),.7)}
+.ctl-danger .ctl-btn:hover:not(:disabled):not([data-state]){background:color-mix(in srgb,var(--telemetry-critical),transparent 78%);--frame:var(--telemetry-critical)}
+.ctl-btn:focus-visible{outline:none;--frame:var(--color-accent);background:rgba(var(--color-accent-rgb),.2);box-shadow:inset 0 0 0 2px var(--color-accent)}
+.ctl-btn:disabled{cursor:not-allowed;opacity:.45}
+.ctl-btn[data-novehicle]{color:var(--color-text-muted);--frame:rgba(148,163,184,.25);background:rgba(148,163,184,.05)}
+/* live action state (action_state_map.json): text always present; lit = action matches current state */
+.ctl-v{display:flex;align-items:center;gap:4px;min-height:14px;font:700 10px/1.2 var(--font-display);letter-spacing:.08em;text-transform:uppercase;color:var(--color-text-muted)}
+.ctl-v .ctl-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none;opacity:.8}
+.ctl-v .ctl-q{font:700 10px var(--font-mono);color:var(--telemetry-warning-ink);border:1px solid color-mix(in srgb,var(--telemetry-warning),transparent 50%);border-radius:3px;padding:0 3px;line-height:1.2}
+.ctl-btn[data-sv=lit]{--frame:color-mix(in srgb,var(--telemetry-nominal),transparent 25%);background:color-mix(in srgb,var(--telemetry-nominal),transparent 88%)}
+.ctl-btn[data-sv=lit] .ctl-v{color:var(--telemetry-nominal-ink)}
+.ctl-btn[data-sv=warn] .ctl-v{color:var(--telemetry-warning-ink)}
+.ctl-btn[data-sv=crit] .ctl-v{color:var(--telemetry-critical-ink)}
+/* na/nocap share the muted token (AA on the button bg); the hollow dot + text tell them from "muted" */
+.ctl-btn[data-sv=na] .ctl-v,.ctl-btn[data-sv=nocap] .ctl-v{color:var(--color-text-muted)}
+.ctl-btn[data-sv=na] .ctl-v .ctl-dot,.ctl-btn[data-sv=nocap] .ctl-v .ctl-dot{background:none;border:1px solid currentColor}
+.ctl-btn[data-sv=nocap]{color:var(--color-text-muted);--frame:rgba(148,163,184,.25);background:rgba(148,163,184,.05)}
+.ctl-btn[data-state] .ctl-v{visibility:hidden}   /* press feedback (OK/RATE/ERR, 1.5 s) wins over state */
+.ctl-btn[data-hold]{touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+/* state rules come last and are doubled-class so they beat .ctl-danger .ctl-btn / :focus-visible */
+.ctl-btn.ctl-btn[data-state=busy]{cursor:progress;--frame:var(--telemetry-info)}
+.ctl-btn.ctl-btn[data-state=busy] .ctl-s,.ctl-btn.ctl-btn[data-state=holding] .ctl-s{color:var(--telemetry-info-ink)}
+.ctl-btn.ctl-btn[data-state=holding]{--frame:var(--telemetry-info);background:rgba(var(--color-accent-rgb),.28)}
+.ctl-btn.ctl-btn[data-state=holding][data-cancel]{--frame:var(--telemetry-warning);background:color-mix(in srgb,var(--telemetry-warning),transparent 86%)}
+.ctl-btn.ctl-btn[data-state=holding][data-cancel] .ctl-s{color:var(--telemetry-warning-ink)}
+.ctl-btn.ctl-btn[data-state=ok]{--frame:var(--telemetry-nominal);background:color-mix(in srgb,var(--telemetry-nominal),transparent 84%)}
+.ctl-btn.ctl-btn[data-state=ok] .ctl-s{color:var(--telemetry-nominal-ink)}
+.ctl-btn.ctl-btn[data-state=warn]{--frame:var(--telemetry-warning);background:color-mix(in srgb,var(--telemetry-warning),transparent 84%)}
+.ctl-btn.ctl-btn[data-state=warn] .ctl-s{color:var(--telemetry-warning-ink)}
+.ctl-btn.ctl-btn[data-state=crit]{--frame:var(--telemetry-critical);background:color-mix(in srgb,var(--telemetry-critical),transparent 82%)}
+.ctl-btn.ctl-btn[data-state=crit] .ctl-s{color:var(--telemetry-critical-ink)}
+/* armed: text stays full-opacity (contrast); only the frame and the inner glow pulse */
+.ctl-btn.ctl-btn[data-state=armed]{--frame:var(--telemetry-critical);color:var(--color-text-base);background:color-mix(in srgb,var(--telemetry-critical),transparent 55%);
+  box-shadow:inset 0 0 14px color-mix(in srgb,var(--telemetry-critical),transparent 40%);animation:armglow 1s steps(2,jump-none) infinite}
+.ctl-btn.ctl-btn[data-state=armed]::before{animation:blink 1s steps(2,jump-none) infinite}
+.ctl-btn.ctl-btn[data-state=armed]:focus-visible{box-shadow:inset 0 0 0 2px var(--color-text-base),inset 0 0 14px color-mix(in srgb,var(--telemetry-critical),transparent 40%)}
+.ctl-btn.ctl-btn[data-state=armed] .ctl-s{color:var(--color-text-base);font-weight:900}
+@keyframes armglow{50%{box-shadow:inset 0 0 4px color-mix(in srgb,var(--telemetry-critical),transparent 70%)}}
+.ctl-btn[data-state=busy]::after{content:"";position:absolute;left:0;bottom:0;height:2px;width:40%;background:var(--telemetry-info);animation:ctlbar .9s linear infinite}
+@keyframes ctlbar{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
+.sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
+
+/* alerts: header sound toggle, toast stack, alerts panel */
+.snd-btn[aria-pressed=true]{color:var(--telemetry-nominal-ink);border-color:color-mix(in srgb,var(--telemetry-nominal),transparent 40%);background:color-mix(in srgb,var(--telemetry-nominal),transparent 86%)}
+.top .snd-btn{margin-left:auto;order:1}
+.toasts{position:fixed;top:calc(var(--hdr-h,96px) + 8px);right:16px;z-index:60;display:flex;flex-direction:column;gap:8px;width:min(380px,calc(100vw - 32px));pointer-events:none}
+.toast{--tone:var(--telemetry-info);--ink:var(--telemetry-info-ink);--frame:color-mix(in srgb,var(--tone),transparent 35%);pointer-events:auto;
+  display:grid;grid-template-columns:1.6em minmax(0,1fr) max-content;gap:10px;align-items:start;padding:10px 12px;
+  background:color-mix(in srgb,var(--color-bg-card) 92%,var(--tone));box-shadow:0 6px 24px rgba(0,0,0,.45);animation:toastin .18s ease-out}
+.toast[data-sev=warn]{--tone:var(--telemetry-warning);--ink:var(--telemetry-warning-ink)}
+.toast[data-sev=critical]{--tone:var(--telemetry-critical);--ink:var(--telemetry-critical-ink);background:color-mix(in srgb,var(--color-bg-card) 80%,var(--tone))}
+.toast .t-ico{color:var(--ink);font-size:16px;line-height:1.2;text-align:center}
+.toast .t-body{min-width:0;display:flex;flex-direction:column;gap:2px}
+.toast .t-sev{font:700 10px/1.2 var(--font-display);letter-spacing:.08em;text-transform:uppercase;color:var(--ink)}
+.toast .t-text{font:600 14px/1.35 var(--font-body);overflow-wrap:anywhere}
+.toast time{font:400 11px var(--font-mono);color:var(--color-text-muted)}
+.toast .t-x{font:700 10px var(--font-display);letter-spacing:.08em;color:var(--color-text-base);background:rgba(148,163,184,.12);
+  border:1px solid var(--color-border);border-radius:4px;padding:6px 10px;min-height:32px;min-width:32px;cursor:pointer}
+.toast[data-sev=critical] .t-x{border-color:color-mix(in srgb,var(--tone),transparent 30%);background:color-mix(in srgb,var(--tone),transparent 75%)}
+.toasts .t-all{pointer-events:auto;align-self:flex-end;font:700 10px var(--font-display);letter-spacing:.08em;color:var(--color-text-base);
+  background:color-mix(in srgb,var(--color-bg-card) 92%,transparent);border:1px solid rgba(148,163,184,.35);padding:6px 10px;min-height:32px;cursor:pointer}
+.toasts .t-all:focus-visible{outline:2px solid var(--telemetry-info);outline-offset:2px}
+@keyframes toastin{from{transform:translateX(16px);opacity:0}to{transform:none;opacity:1}}
+.al-ctl{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin-bottom:16px}
+.al-ctl .grp{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center}
+.al-ctl select{font:500 12px var(--font-mono);color:var(--color-text-base);background:var(--color-bg-surface-elevated);border:1px solid var(--color-border);border-radius:4px;padding:6px 8px;min-height:32px}
+.al-recent{max-height:220px}
+.al-rules summary{margin-top:16px}
+.al-rule-list{list-style:none;margin:8px 0 0;padding:0}
+.al-rule{display:grid;grid-template-columns:minmax(0,1fr) max-content max-content;gap:4px 8px;align-items:center;padding:6px 2px;border-bottom:1px solid var(--color-border)}
+.al-rule label{display:flex;gap:8px;align-items:center;min-width:0;cursor:pointer}
+.al-rule input{width:18px;height:18px;flex:none;accent-color:var(--color-accent)}
+.al-rule .r-t{font:500 13px var(--font-body);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.al-rule .r-d{grid-column:1/-1;margin:0 0 0 26px;font:400 12px/1.4 var(--font-body);color:var(--color-text-muted);overflow-wrap:anywhere}
+.al-rule .r-d .chip{margin-right:6px;vertical-align:middle}
+.al-rule[data-off] .r-t{color:var(--color-text-muted)}
+.al-rule .btn{min-height:28px;padding:5px 10px}
+@media (max-width:520px){.toasts{top:auto;bottom:16px}}
+
+@media (max-width:520px){
+  .ann-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}
+  .tile-val .v{font-size:24px}
+  .top{gap:6px 12px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+  .ann[data-flash] .a-bang{display:block}
+  .ctl-btn[data-state=busy]::after{display:none}
+  .toast{animation:none}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>SC <span>TELEMETRY</span></h1>
+  <span id="status" class="badge" data-tone="warning" role="status" aria-live="polite"><i class="dot" aria-hidden="true"></i><span id="statusText">CONNECTING</span></span>
+  <span id="zoneBadge" class="badge" data-tone="muted" hidden title=""><i class="dot" aria-hidden="true"></i><span class="zt" id="zoneText">—</span></span>
+  <div class="top-meta">
+  <div class="meta" id="metaLink">
+    <span class="kv1"><span class="micro">SRC</span><b id="source">—</b></span>
+    <span class="kv1"><span class="micro">RATE</span><b id="hz">—</b></span>
+    <span class="kv1"><span class="micro">FRAMES</span><b id="frames">—</b></span>
+    <span class="kv1"><span class="micro">AGE</span><b id="age">—</b></span>
+    <span class="kv1"><span class="micro">HIST</span><b id="hist">—</b></span>
+  </div>
+  <div class="meta meta-sess" id="metaSess" aria-label="Session">
+    <span class="kv1 sess" title="Shard (from Game.log)"><span class="micro">SHARD</span><b id="hShard">—</b></span>
+    <span class="kv1 sess"><span class="micro">REGION</span><b id="hRegion">—</b></span>
+    <span class="kv1 sess"><span class="micro">SYSTEM</span><b id="hSystem">—</b></span>
+  </div>
+  </div>
+  <button class="btn snd-btn snd-toggle" id="sndBtn" type="button" aria-pressed="false" title="Play alert sounds and speech in this tab (browsers need a click first)">Enable sound</button>
+</header>
+<div class="toasts" id="toasts" role="region" aria-label="Alert notifications"></div>
+<p class="sr-only" id="alertLive" role="status" aria-live="polite" aria-atomic="true"></p>
+<p class="sr-only" id="alertLiveCrit" role="alert" aria-atomic="true"></p>
+
+<main>
+  <section class="hero" aria-label="Key flight readouts">
+    <article class="tile chamfer-md" id="t-speed">
+      <div class="tile-head"><span class="micro">Speed</span><span class="badge" data-tone="info" hidden></span></div>
+      <div class="tile-val"><span class="v">—</span><span class="u">m/s</span></div>
+      <div class="tile-sub">—</div>
+      <div class="spark chart"><canvas tabindex="0" role="img" aria-label="Speed, last 180 seconds"></canvas><div class="tip" hidden></div></div>
+    </article>
+    <article class="tile chamfer-md" id="t-g">
+      <div class="tile-head"><span class="micro">G-load</span><span class="badge" hidden></span></div>
+      <div class="tile-val"><span class="v">—</span><span class="u">G</span></div>
+      <div class="tile-sub">—</div>
+      <div class="spark chart"><canvas tabindex="0" role="img" aria-label="G-load, last 180 seconds"></canvas><div class="tip" hidden></div></div>
+    </article>
+    <article class="tile chamfer-md" id="t-hdg">
+      <div class="tile-head"><span class="micro">Heading</span>
+        <svg class="compass-glyph" viewBox="-10 -10 20 20" aria-hidden="true"><circle r="9" fill="none" stroke="rgba(148,163,184,.4)"/><g id="glyphNeedle"><path d="M0,-8 L3,2 L0,0.5 L-3,2 Z" fill="var(--color-accent)"/></g></svg>
+      </div>
+      <div class="tile-val"><span class="v">—</span><span class="u">°</span></div>
+      <div class="tile-sub">—</div>
+      <svg class="tape chart" id="tape" role="img" aria-label="Heading tape" preserveAspectRatio="none"></svg>
+    </article>
+    <article class="tile chamfer-md" id="t-boost">
+      <div class="tile-head"><span class="micro">Boost</span><span class="badge" hidden></span></div>
+      <div class="tile-val"><span class="v">—</span><span class="u">%</span></div>
+      <div class="tile-sub">—</div>
+      <div class="spark chart"><canvas tabindex="0" role="img" aria-label="Boost reserves, last 180 seconds"></canvas><div class="tip" hidden></div></div>
+    </article>
+    <article class="tile chamfer-md" id="t-shield">
+      <div class="tile-head"><span class="micro">Shields</span><span class="badge" hidden></span></div>
+      <div class="tile-val"><span class="v">—</span><span class="u">%</span></div>
+      <div class="tile-sub">—</div>
+      <div class="spark chart"><canvas tabindex="0" role="img" aria-label="Shield level, last 180 seconds"></canvas><div class="tip" hidden></div></div>
+    </article>
+    <article class="tile chamfer-md" id="t-hr">
+      <div class="tile-head"><span class="micro">Heart rate</span><span class="heart" id="heart" aria-hidden="true">&#9829;</span></div>
+      <div class="tile-val"><span class="v">—</span><span class="u">bpm</span></div>
+      <div class="tile-sub">—</div>
+      <div class="spark chart"><canvas tabindex="0" role="img" aria-label="Heart rate, last 180 seconds"></canvas><div class="tip" hidden></div></div>
+    </article>
+  </section>
+
+  <div class="panels">
+    <div class="stack stack-a">
+      <section class="panel chamfer-md" aria-labelledby="h-pilot">
+        <header class="ph"><h2 id="h-pilot">Pilot</h2><div class="badges"><span class="badge" id="loco" data-tone="muted">—</span><span class="badge" id="role" data-tone="muted">—</span></div></header>
+        <p class="empty-note" id="pilotEmpty" hidden>Actor not reported by game.</p>
+        <div id="vitals"></div>
+        <dl class="kv">
+          <dt>Body temp</dt><dd id="btemp">—</dd>
+          <dt>External temp</dt><dd id="extemp">—</dd>
+          <dt>Radiation</dt><dd id="rad">—</dd>
+          <dt>Atmosphere</dt><dd><span class="badge" id="atmo" data-tone="muted">—</span></dd>
+          <dt>Pressure</dt><dd id="press">—</dd>
+          <dt>Gravity</dt><dd id="grav">—</dd>
+          <dt>Intoxication</dt><dd id="intox">—</dd>
+          <dt>Seat</dt><dd id="seat">—</dd>
+          <dt>Balance</dt><dd id="uec">—</dd>
+        </dl>
+      </section>
+
+      <section class="panel chamfer-md" aria-labelledby="h-sys">
+        <header class="ph"><h2 id="h-sys">Systems</h2></header>
+        <h3 class="micro sub-h" style="margin-top:0">Power</h3>
+        <div class="chips" id="power"><span class="empty-note">—</span></div>
+        <h3 class="micro sub-h">Flight assists</h3>
+        <div class="chips" id="assists"><span class="empty-note">—</span></div>
+        <div class="legend micro">
+          <span><i style="background:color-mix(in srgb,var(--telemetry-nominal),transparent 80%);border-color:var(--telemetry-nominal)"></i>ACT = active</span>
+          <span><i style="border-style:dashed;border-color:var(--telemetry-info)"></i>EN = enabled, idle</span>
+          <span><i style="border-color:#64748b"></i>OFF</span>
+        </div>
+        <h3 class="micro sub-h">HUD / aux</h3>
+        <div class="chips" id="aux"><span class="empty-note">—</span></div>
+      </section>
+
+      <section class="panel chamfer-md" aria-labelledby="h-sess">
+        <header class="ph"><h2 id="h-sess">Session</h2><div class="badges"><span class="badge" id="sessSrc" data-tone="muted">—</span><span class="badge" id="sessChan" data-tone="muted" hidden>—</span></div></header>
+        <p class="empty-note" id="sessEmpty">No session data (Game.log disabled or not found).</p>
+        <div id="sessBody" hidden>
+          <div class="ident"><div class="ident-name" id="sessSystem">—</div><div class="ident-sub micro" id="sessShardSub">—</div></div>
+          <dl class="kv">
+            <dt>Shard</dt><dd id="sShard">—</dd>
+            <dt>Region</dt><dd id="sRegion">—</dd>
+            <dt>Joined</dt><dd id="sJoined">—</dd>
+            <dt>In session</dt><dd id="sDur">—</dd>
+            <dt>Build</dt><dd id="sBuild">—</dd>
+            <dt>Location id</dt><dd id="sLoc">—</dd>
+            <dt>Server</dt><dd><button class="reveal" id="sServer" type="button" aria-pressed="false" title="Click to reveal the server address">Reveal</button></dd>
+            <dt>Session id</dt><dd><button class="reveal" id="sSession" type="button" aria-pressed="false" title="Click to reveal the session ids">Reveal</button></dd>
+            <dt>Log started</dt><dd id="sLogStart">—</dd>
+          </dl>
+        </div>
+      </section>
+    </div>
+
+    <div class="stack stack-b">
+      <section class="panel chamfer-md" aria-labelledby="h-ship">
+        <header class="ph"><h2 id="h-ship">Ship</h2><div class="badges"><span class="badge" id="mm" data-tone="muted">—</span><span class="badge" id="spool" data-tone="muted" hidden>—</span></div></header>
+        <p class="empty-note" id="shipEmpty" hidden>No vehicle reported.</p>
+        <div class="ident"><div class="ident-name" id="shipName">—</div><div class="ident-sub micro" id="shipSub">—</div></div>
+        <div class="badges" id="shipBadges">
+          <span class="badge" id="landed" data-tone="muted">—</span>
+          <span class="badge" id="gear" data-tone="muted">—</span>
+          <span class="badge" id="vtol" data-tone="muted" hidden>—</span>
+          <span class="badge" id="lights" data-tone="muted">—</span>
+        </div>
+        <h3 class="micro sub-h">Capabilities <span class="ctl-count" id="capSrc">—</span></h3>
+        <div class="chips" id="shipCaps"><span class="empty-note">—</span></div>
+        <div id="shipMeters" class="ship-meters"></div>
+        <dl class="kv">
+          <dt>Altitude</dt><dd id="alt">—</dd>
+          <dt>Radar altitude</dt><dd id="ralt">—</dd>
+          <dt>Vertical speed</dt><dd id="vsi">—</dd>
+          <dt>Atmo density</dt><dd id="adens">—</dd>
+          <dt id="doorsL">Doors</dt><dd id="doors">—</dd>
+          <dt>Type</dt><dd id="vtype">—</dd>
+        </dl>
+      </section>
+
+      <section class="panel chamfer-md" aria-labelledby="h-wpn">
+        <header class="ph"><h2 id="h-wpn">Weapons</h2><div class="badges"><span class="badge" id="preset" data-tone="info" hidden></span></div></header>
+        <div id="weapons"><p class="empty-note">No weapons reported.</p></div>
+        <h3 class="micro sub-h">Countermeasures</h3>
+        <div class="counters" id="cms"></div>
+        <h3 class="micro sub-h">Settings</h3>
+        <div class="chips" id="wset"><span class="empty-note">—</span></div>
+      </section>
+    </div>
+
+    <div class="stack stack-c">
+      <div class="stack stack-c1">
+        <section class="panel chamfer-md" aria-labelledby="h-shld">
+          <header class="ph"><h2 id="h-shld">Shields</h2><div class="badges"><span class="badge" id="shGen" data-tone="muted">GEN —</span><span class="badge" id="shEmit" data-tone="muted">EMIT —</span></div></header>
+          <div id="shieldMeter"></div>
+          <div class="faces" id="faces" role="group" aria-label="Shield faces (game order; face order unverified)"></div>
+          <h3 class="micro sub-h">Annunciators</h3>
+          <div class="ann-grid" id="annun"></div>
+          <div class="legend micro" aria-hidden="false">
+            <span><i style="background:color-mix(in srgb,var(--telemetry-nominal),transparent 70%);border-color:var(--telemetry-nominal)"></i>NOM</span>
+            <span><i style="background:rgba(148,163,184,.1);border-color:#64748b"></i>OFF</span>
+            <span><i style="background:color-mix(in srgb,var(--telemetry-warning),transparent 70%);border-color:var(--telemetry-warning)"></i>MINOR</span>
+            <span><i style="background:color-mix(in srgb,var(--telemetry-critical),transparent 70%);border-color:var(--telemetry-critical)"></i>MAJOR</span>
+            <span>BLINK / ! = FLASHING</span>
+          </div>
+        </section>
+
+        <section class="panel chamfer-md" aria-labelledby="h-near">
+          <header class="ph"><h2 id="h-near">Nearby</h2><div class="badges"><span class="badge" id="nbCount" data-tone="muted">—</span></div></header>
+          <p class="empty-note" id="nbOff">No signal data (Game.log disabled or not found).</p>
+          <div id="nbBody" hidden>
+            <ul class="nearby" id="nbList" aria-label="Ship classes streamed in nearby"></ul>
+            <p class="empty-note" id="nbEmpty">No ships streamed in yet</p>
+            <p class="nb-note">Ships whose navigation streamed into your client (Game.log). Parked ships count too; no owner, distance or hostility. ×N = ship instances, not people (hover it). Make, role, size, crew and cargo come from local game data.</p>
+          </div>
+        </section>
+
+        <section class="panel chamfer-md" aria-labelledby="h-people" id="pplPanel">
+          <header class="ph"><h2 id="h-people">People</h2><div class="badges"><span class="badge" id="pplCount" data-tone="muted">—</span></div></header>
+          <p class="empty-note" id="pplOff">No people data (Game.log disabled or not found).</p>
+          <div id="pplBody" hidden>
+            <div class="ppl-ctl">
+              <label class="ppl-tg" title="Show player handles seen in Game.log (this dashboard only; never recorded)"><input type="checkbox" id="pplNames"><span>Show names</span></label>
+              <label class="ppl-tg" title="Look up each handle's main org on robertsspaceindustries.com (one request per 3 s, cached 7 days in .tmp/rsi-cache.json)"><input type="checkbox" id="pplOrgs"><span>Look up orgs</span></label>
+              <button class="btn" id="pplClear" type="button" title="Forget every cached RSI lookup">Clear cache</button>
+            </div>
+            <p class="ctl-note" id="pplNote" role="status" aria-live="polite"></p>
+            <div class="ppl-counts" id="pplCounts">—</div>
+            <ul class="people" id="pplList" aria-label="Players seen in Game.log"></ul>
+            <p class="nb-note">Handles from Game.log lines that name other players. CREW = a voice channel of a ship you are on; PARTY = party toasts; PARTY? = quantum calibration near you (party or nearby); NEARBY = killer or victim of a ship destroyed near you. Kept in memory for this session only, never recorded. Names open the public RSI citizen page in your browser.</p>
+          </div>
+        </section>
+      </div>
+      <div class="stack stack-c2">
+        <section class="panel chamfer-md" aria-labelledby="h-alerts" id="alertsPanel">
+          <header class="ph"><h2 id="h-alerts">Alerts</h2><div class="badges"><span class="badge" id="alRoute" data-tone="muted">AUDIO —</span><span class="badge" id="alMuted" data-tone="warning" hidden>MUTED</span></div></header>
+          <p class="ctl-note" id="alNote" role="status" aria-live="polite">Loading alerts…</p>
+          <div class="al-ctl">
+            <button class="btn snd-toggle" type="button" aria-pressed="false">Enable sound</button>
+            <label class="grp"><span class="micro">Audio</span><select id="alMode" aria-label="Alert audio mode">
+              <option value="auto">auto</option><option value="bridge">bridge</option><option value="browser">browser</option><option value="off">off</option></select></label>
+            <div class="grp" role="group" aria-label="Mute alert audio"><span class="micro">Mute</span>
+              <button class="btn" type="button" data-min="5">5 min</button><button class="btn" type="button" data-min="15">15 min</button>
+              <button class="btn" type="button" data-min="60">60 min</button><button class="btn" type="button" data-min="0" id="alUnmute" hidden>Unmute</button></div>
+          </div>
+          <h3 class="micro sub-h">Recent</h3>
+          <ul class="log al-recent" id="alRecent" aria-label="Recent alerts"><li class="none">No alerts yet.</li></ul>
+          <details class="al-rules" id="alRulesBox">
+            <summary><span class="caret micro" aria-hidden="true">&#9656;</span><span class="micro" style="color:var(--color-text-base)">Rules</span><span class="micro" id="alRuleCount">—</span></summary>
+            <ul class="al-rule-list" id="alRules"></ul>
+          </details>
+        </section>
+
+        <section class="panel chamfer-md" aria-labelledby="h-log">
+          <header class="ph"><h2 id="h-log">Flight log</h2><span class="micro" id="logCount">0</span></header>
+          <ul class="log" id="log" aria-live="off"><li class="none">No state changes yet. First frame is the baseline.</li></ul>
+        </section>
+
+        <section class="panel chamfer-md" aria-labelledby="h-ff" id="ffPanel" hidden>
+          <header class="ph"><h2 id="h-ff">Force feedback / Turret</h2></header>
+          <div id="ffBody" hidden>
+            <div id="ffMeters"></div>
+            <div class="ff-axes" id="ffAxes"></div>
+          </div>
+          <p class="empty-note" id="ffNone" hidden>Force feedback not reported by game.</p>
+          <div id="turretBody" hidden>
+            <h3 class="micro sub-h">Turret</h3>
+            <div class="chips" id="turret"></div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <section class="panel chamfer-md wide" aria-labelledby="h-ctl" id="ctlPanel">
+      <header class="ph"><h2 id="h-ctl">Controls</h2>
+        <div class="badges">
+          <span class="badge" id="ctlSource" data-tone="muted" hidden>—</span>
+          <span class="badge" id="ctlCount" data-tone="muted">— ACTIONS</span>
+          <button class="btn" id="ctlRefresh" type="button">Refresh</button>
+        </div>
+      </header>
+      <p class="ctl-note" id="ctlNote" role="status" aria-live="polite">Loading actions…</p>
+      <p class="sr-only" id="ctlLive" role="status" aria-live="polite" aria-atomic="true"></p>
+      <div class="ctl-groups" id="ctlGroups"></div>
+      <p class="ctl-info" id="ctlInfo" hidden><b id="ctlInfoL"></b><span id="ctlInfoT"></span></p>
+    </section>
+
+    <section class="panel chamfer-md wide" aria-label="Raw frame">
+      <details id="rawDetails">
+        <summary><span class="caret micro" aria-hidden="true">&#9656;</span><span class="micro" style="color:var(--color-text-base)">Raw frame</span><button class="btn" id="copyBtn" type="button">Copy JSON</button></summary>
+        <pre class="raw" id="raw">—</pre>
+      </details>
+    </section>
+  </div>
+</main>
+
+<script id="state-logic">
+"use strict";
+// Pure, DOM-free logic: action state on buttons + shield face layout. Tested by tests/test_dashboard_js.py
+// (this block is extracted by id and run in node). Mirrors action_state_map.json.
+globalThis.StateLogic = (() => {
+  const isNum = v => typeof v === "number" && isFinite(v) && Math.abs(v) <= 1e30;
+  // operator-mode actions gated by game-data capabilities (v_set_flight_mode is never gated)
+  const MODE_CAP = { v_set_mining_mode: "mining", v_set_salvage_mode: "salvage", v_set_refuel_mode: "refuel",
+    v_set_scan_mode: "scan", v_set_quantum_mode: "quantum", v_set_guns_mode: "guns" };
+  const VEHICLE_ROOTS = /^(vehicle|weapons|turret)\./;
+
+  // dotted path into a proto3-JSON frame; "a.b[*].c" -> {many: [c of each b]} (undefined if b is not a list)
+  function getPath(obj, path) {
+    if (typeof path !== "string" || !path) return undefined;
+    const parts = path.split(".");
+    let cur = obj;
+    for (let i = 0; i < parts.length; i++) {
+      if (cur == null || typeof cur !== "object") return undefined;
+      const p = parts[i];
+      if (p.endsWith("[*]")) {
+        const list = cur[p.slice(0, -3)];
+        if (!Array.isArray(list)) return undefined;
+        const rest = parts.slice(i + 1).join(".");
+        return { many: list.map(x => (rest ? getPath(x, rest) : x)) };
+      }
+      cur = cur[p];
+    }
+    return cur;
+  }
+  const strip = (v, prefix) => (typeof v === "string" && prefix && v.startsWith(prefix) ? v.slice(prefix.length) : v);
+  function masterKey(f) { return strip(getPath(f, "vehicle.state.master_mode.mode"), "VEHICLE_MASTER_MODE_"); }
+  // the telemetry path this group reads right now (path_by_master picks by NAV/SCM; null = none applies)
+  function groupPath(g, f) {
+    if (g && g.path_by_master && typeof g.path_by_master === "object") return g.path_by_master[masterKey(f)] || null;
+    return g ? g.path || null : null;
+  }
+  function readGroup(g, f) {
+    const p = groupPath(g, f);
+    let v = p ? getPath(f, p) : undefined;
+    if ((v === undefined || v === null) && g.alt_path) v = getPath(f, g.alt_path);
+    return v;
+  }
+  function fmtValue(fmt, v) {
+    if (typeof fmt !== "string" || !fmt) return String(Math.round(v * 10) / 10);
+    return fmt.replace(/\{v(?::\.(\d+)f)?\}/g, (_, d) => (d == null ? String(v) : v.toFixed(Number(d))));
+  }
+  const UNKNOWN = Object.freeze({ known: false, on: null, key: null, label: null });
+  const ANN_LABEL = { NOMINAL: "NOM", OFF: "OFF", MINOR_ON: "MINOR", MINOR_FLASHING: "MINOR!", MAJOR_ON: "MAJOR", MAJOR_FLASHING: "MAJOR!" };
+
+  // group + frame -> {known, on (bool|null), key, label, tone?, pending?}
+  function stateFor(g, f) {
+    if (!g || !f) return UNKNOWN;
+    const v = readGroup(g, f);
+    const labels = Array.isArray(g.labels) ? g.labels : null;
+    let st;
+    switch (g.kind) {
+      case "bool": {
+        if (typeof v !== "boolean") return UNKNOWN;
+        const on = g.invert ? !v : v;
+        st = { known: true, on, key: on ? "ON" : "OFF", label: (labels || ["OFF", "ON"])[on ? 1 : 0] };
+        break;
+      }
+      case "enum": {
+        const key = strip(v, g.prefix);
+        if (typeof key !== "string" || !key || key === "UNSPECIFIED") return UNKNOWN;
+        const lm = g.labels && !Array.isArray(g.labels) ? g.labels : {};
+        st = { known: true, on: Array.isArray(g.on) ? g.on.includes(key) : null, key,
+          label: lm[key] || key.replace(/_/g, " ") };
+        break;
+      }
+      case "availability": {   // {enabled, active}: active -> ON, enabled only -> ARMED, else OFF
+        if (!v || typeof v !== "object" || (typeof v.enabled !== "boolean" && typeof v.active !== "boolean")) return UNKNOWN;
+        const en = v.enabled === true, ac = v.active === true;
+        if (g.invert) {
+          const on = !en;
+          st = { known: true, on, key: on ? "ON" : "OFF", label: (labels || ["OFF", "ON"])[on ? 1 : 0] };
+        } else {
+          const key = ac ? "ON" : en ? "ARMED" : "OFF";
+          st = { known: true, on: en || ac, key, label: key === "ON" && labels ? labels[1] : key === "OFF" && labels ? labels[0] : key };
+        }
+        break;
+      }
+      case "annunciator": {
+        const key = strip(v, "ANNUNCIATOR_STATE_");
+        if (typeof key !== "string" || !key || key === "UNSPECIFIED") return UNKNOWN;
+        st = { known: true, on: key !== "OFF", key, label: ANN_LABEL[key] || key.replace(/_/g, " "),
+          tone: key.startsWith("MAJOR") ? "crit" : key.startsWith("MINOR") ? "warn" : null };
+        break;
+      }
+      case "value": {
+        if (!isNum(v)) return UNKNOWN;
+        st = { known: true, on: null, key: null, value: v, label: fmtValue(g.format, v) };
+        break;
+      }
+      case "any_bool": {   // [*] path: true if ANY element is true; empty list = false
+        if (!v || !Array.isArray(v.many)) return UNKNOWN;
+        const on = v.many.some(x => x === true);
+        st = { known: true, on, key: on ? "ON" : "OFF", label: (labels || ["OFF", "ON"])[on ? 1 : 0] };
+        break;
+      }
+      default: return UNKNOWN;
+    }
+    if (g.sub && g.sub.path && getPath(f, g.sub.path) === false && g.sub.false_label) {
+      st.label += " · " + g.sub.false_label; st.pending = true;
+    }
+    return st;
+  }
+
+  function globMatch(pat, name) {
+    if (typeof pat !== "string") return false;
+    return pat.endsWith("*") ? name.startsWith(pat.slice(0, -1)) : pat === name;
+  }
+  // action_state_map.json -> {byAction: {name: {group, spec}}, stateless: [...]}
+  function indexMap(map) {
+    const byAction = {}, stateless = Array.isArray(map?.stateless) ? map.stateless.filter(x => typeof x === "string") : [];
+    for (const g of Array.isArray(map?.groups) ? map.groups : []) {
+      if (!g || typeof g !== "object" || !g.actions || typeof g.actions !== "object") continue;
+      for (const name in g.actions) if (!stateless.some(p => globMatch(p, name))) byAction[name] = { group: g, spec: g.actions[name] };
+    }
+    return { byAction, stateless };
+  }
+  const isStateless = (index, name) => !!index && index.stateless.some(p => globMatch(p, name));
+
+  // is the button "lit" (its action matches the current state)?
+  function litFor(spec, st) {
+    if (!st.known) return false;
+    if (spec && typeof spec === "object" && "active_when" in spec) {
+      const w = spec.active_when;
+      return typeof w === "boolean" ? st.on === w : st.key === w;
+    }
+    if (spec === "toggle" || spec === "on") return st.on === true;
+    if (spec === "off") return st.on === false;
+    return false;   // cycle / show: value only
+  }
+
+  // ctx: {index, frame, stale, caps (snapshot.capabilities | null), unsupported: Set("group|CLASS")}
+  // -> {mapped, text, tone: lit|muted|na|warn|crit|nocap, lit, unverified, notes[]}
+  function buttonView(name, ctx) {
+    const m = ctx?.index?.byAction?.[name] || null, cap = MODE_CAP[name] || null;
+    if (!m && !cap) return { mapped: false };
+    const g = m ? m.group : null, f = ctx.frame || null, vs = f?.vehicle?.state;
+    const notes = [];
+    if (g?.known_issue) notes.push("Known issue: " + g.known_issue);
+    if (g?.note) notes.push(g.note);
+    const unverified = !!g && g.verified === false;
+    if (unverified) notes.push("State mapping unverified (inferred from names), not yet confirmed live");
+    const view = (text, tone, lit) => ({ mapped: true, text, tone, lit: !!lit, unverified, notes });
+    if (ctx.stale) return view("STALE", "na");
+    const path = g ? (groupPath(g, f) || g.path || Object.values(g.path_by_master || {})[0] || "") : "vehicle.";
+    if (!vs && (VEHICLE_ROOTS.test(path) || cap)) return view("NO SHIP", "na");
+    const cls = typeof vs?.class_name === "string" ? vs.class_name : "";
+    if (cap) {
+      const caps = ctx.caps && ctx.caps.caps;
+      if (caps && caps[cap] === false) {
+        notes.unshift("Game data" + (ctx.caps.source_build ? " (" + ctx.caps.source_build + ")" : "") + " says " +
+          (ctx.caps.display_name || cls || "this ship") + " has no " + cap + " hardware. The game still answers OK. " +
+          "Pressing is allowed in case the data is stale or the loadout was changed.");
+        return { ...view("N/A · no " + cap, "nocap"), nocap: cap };
+      }
+      if (!caps) { notes.push("Capabilities unknown for " + (cls || "this ship") + " (not in game data): no gating"); }
+    }
+    if (g?.known_issue && ctx.unsupported && ctx.unsupported.has(g.id + "|" + cls)) {
+      notes.unshift("Remote trigger returned FAILED on " + (cls || "this ship") + " this session: shown N/A");
+      return view(g.absent_label || "N/A", "na");
+    }
+    if (!g) return { ...view("", "muted"), unverified: !ctx.caps?.caps };   // gated-only button, caps OK
+    const st = stateFor(g, f);
+    if (!st.known) return view(g.absent_label || "N/A", "na");
+    const lit = litFor(m.spec, st);
+    return view(st.label, lit ? "lit" : st.tone || (st.pending ? "warn" : "muted"), lit);
+  }
+
+  // ---- shield faces ------------------------------------------------------------------------
+  const LAYOUT_TITLE = { bubble: "BUBBLE", front_back: "FRONT / BACK", quadrant: "QUADRANTS", quadrant_top_bottom: "QUAD + TOP / BOTTOM" };
+  const range = n => Array.from({ length: n }, (_, i) => i);
+  const fl = n => range(n).map(i => "F" + (i + 1));
+  const DEFAULTS = {
+    1: { layout: "bubble", labels: ["ALL"], ring: [0], verified: true },
+    2: { layout: "front_back", labels: fl(2), ring: [0, 1], verified: false },
+    4: { layout: "quadrant", labels: fl(4), ring: [0, 1, 2, 3], verified: false },
+    6: { layout: "quadrant_top_bottom", labels: fl(6), ring: [0, 1, 2, 3], pips: [4, 5], verified: false },
+  };
+  const validIdx = (a, n) => Array.isArray(a) && a.every(i => Number.isInteger(i) && i >= 0 && i < n);
+  // faces[] length (+ shield_faces.json meta, + class) -> {n, layout, title, labels, ring, pips, verified, segs}
+  function faceLayout(n, meta, cls) {
+    n = Number.isInteger(n) && n > 0 ? n : 0;
+    if (!n) return { n: 0, layout: "none", title: "NO FACE DATA", labels: [], ring: [], pips: [], verified: false, segs: [] };
+    const cand = [meta?.overrides_by_class?.[cls], meta?.by_count?.[String(n)], DEFAULTS[n]];
+    let o = null;
+    for (const c of cand) {
+      if (!c || typeof c !== "object") continue;
+      const ring = c.ring == null ? range(n) : c.ring, pips = c.pips == null ? [] : c.pips;
+      if (!validIdx(ring, n) || !validIdx(pips, n) || !ring.length) continue;
+      if (c.labels != null && !(Array.isArray(c.labels) && c.labels.length === n)) continue;
+      o = { layout: typeof c.layout === "string" ? c.layout : "segments", labels: c.labels ? c.labels.map(String) : fl(n),
+        ring, pips, verified: c.verified === true };
+      break;
+    }
+    if (!o) o = { layout: "segments", labels: fl(n), ring: range(n), pips: [], verified: false };
+    const m = o.ring.length, gap = m > 1 ? 6 : 0;
+    const segs = o.ring.map((face, j) => {
+      if (m === 1) return { face, full: true, a0: 0, a1: 360 };
+      const c = -90 + j * 360 / m, half = 180 / m - gap / 2;
+      return { face, full: false, a0: c - half, a1: c + half };
+    });
+    return { n, ...o, title: LAYOUT_TITLE[o.layout] || n + " FACES", segs };
+  }
+  // per-face readout; a face at <= 0 while the overall level is > 0 is DOWN (critical, never colour-only)
+  function faceStates(faces, level) {
+    const lv = isNum(level) ? level : null;
+    return (Array.isArray(faces) ? faces : []).map(x => {
+      const v = isNum(x) ? x : null;
+      if (v == null) return { v: null, sev: "none", down: false, text: "—" };
+      if (v <= 0 && lv != null && lv > 0) return { v, sev: "critical", down: true, text: "DOWN" };
+      const c = Math.max(0, Math.min(1, v));
+      return { v, sev: c < 0.25 ? "critical" : c < 0.5 ? "warning" : "nominal", down: false, text: Math.round(c * 100) + "%" };
+    });
+  }
+
+  return { MODE_CAP, getPath, groupPath, stateFor, fmtValue, indexMap, isStateless, litFor, buttonView, faceLayout, faceStates };
+})();
+</script>
+<script id="alert-logic">
+"use strict";
+// Pure, DOM-free alert logic: toast stack policy, tone patterns, play decision. Tested by
+// tests/test_dashboard_js.py (extracted by id, run in node).
+globalThis.AlertLogic = (() => {
+  const SEV = { info: 0, warn: 1, critical: 2 };
+  const LABEL = { info: "INFO", warn: "WARNING", critical: "CRITICAL" };
+  const ICON = { info: "•", warn: "▲", critical: "✖" };
+  // critical toasts need an ACK and survive eviction, but still clear after 60 s: the pilot is in the
+  // game and may never click them; the Recent list keeps the history
+  const TTL_MS = { info: 6000, warn: 10000, critical: 60000 };
+  // WebAudio tone patterns per sound id (falls back to severity): {f Hz, f2 sweep, d s, type, v gain} | {gap s}
+  const TONES = {
+    info: [{ f: 880, d: 0.12, type: "sine", v: 0.18 }],
+    warn: [{ f: 660, d: 0.13, type: "triangle", v: 0.25 }, { gap: 0.07 }, { f: 660, d: 0.13, type: "triangle", v: 0.25 }],
+    critical: [{ f: 990, f2: 740, d: 0.16, type: "sawtooth", v: 0.16 }, { gap: 0.05 }, { f: 990, f2: 740, d: 0.16, type: "sawtooth", v: 0.16 },
+      { gap: 0.05 }, { f: 990, f2: 740, d: 0.16, type: "sawtooth", v: 0.16 }],
+  };
+  const sevOf = s => (s in SEV ? s : "info");
+  function tonesFor(sound, severity) {
+    if (sound === null) return [];
+    return TONES[sound] || TONES[sevOf(severity)];
+  }
+  const toneLength = notes => (Array.isArray(notes) ? notes : []).reduce((t, n) => t + (n.gap || n.d || 0), 0);
+  // a play job from the bridge is for this tab only when it names this tab and sound is enabled here
+  const shouldPlay = (msg, enabled) => !!(enabled && msg && msg.kind === "play" && msg.play === true && msg.alert);
+  // dedupe key that survives a bridge restart: alert ids restart at 1 per bridge process (`boot`)
+  const alertKey = a => String((a && a.boot) || "") + ":" + String(a && a.id != null ? a.id : "");
+  // a tab may claim the audio only when it can really make a sound: a running AudioContext (tones) or
+  // speech voices. Otherwise it would hold the route and play nothing.
+  const canClaim = (enabled, ctxState, speech) => !!(enabled && (ctxState === "running" || speech));
+
+  class ToastStack {
+    constructor(max) { this.max = max || 5; this.items = []; }
+    setMax(max) { this.max = max; this._trim(); }
+    // same rule still on screen -> update it (count, text, expiry) instead of stacking duplicates
+    add(alert, nowMs) {
+      const sev = sevOf(alert && alert.severity), ttl = TTL_MS[sev];
+      let t = this.items.find(x => x.rule === alert.rule);
+      if (t) { t.n++; t.text = alert.text; t.id = alert.id; t.t = nowMs; t.expires = ttl ? nowMs + ttl : 0; t.changed = true; return t; }
+      t = { key: "toast" + (alert.id != null ? alertKey(alert) : nowMs), id: alert.id, rule: alert.rule, severity: sev, label: LABEL[sev],
+        icon: ICON[sev], text: String(alert.text || ""), sticky: sev === "critical", t: nowMs, expires: ttl ? nowMs + ttl : 0, n: 1, changed: true };
+      this.items.unshift(t);
+      this._trim();
+      return t;
+    }
+    _trim() {
+      while (this.items.length > this.max) {
+        let i = -1;
+        for (let k = this.items.length - 1; k >= 0; k--) if (!this.items[k].sticky) { i = k; break; }
+        this.items.splice(i >= 0 ? i : this.items.length - 1, 1);   // drop oldest non-sticky, else oldest
+      }
+    }
+    ackAll() { const n = this.items.length; this.items = []; return n; }
+    ack(key) { const n = this.items.length; this.items = this.items.filter(x => x.key !== key); return n !== this.items.length; }
+    expire(nowMs) {
+      const gone = this.items.filter(x => x.expires && nowMs >= x.expires);
+      if (gone.length) this.items = this.items.filter(x => !gone.includes(x));
+      return gone;
+    }
+    list() { return this.items.slice(); }
+  }
+
+  // header/panel status text for the audio route
+  function routeText(audio, enabledHere, isTarget, speech) {
+    if (!audio) return ["AUDIO —", "muted"];
+    if (audio.muted) return ["MUTED", "warning"];
+    const r = audio.route || {};
+    if (r.to === "browser") return [isTarget ? "AUDIO · THIS TAB" + (speech ? "" : " (TONES)") : "AUDIO · OTHER TAB", "nominal"];
+    if (r.to === "bridge") {
+      const b = audio.bridge || {};
+      return ["AUDIO · BRIDGE" + (b.tts ? "" : b.player ? " (SOUNDS)" : " (NONE)") + (b.sink === "dry-run" ? " DRY RUN" : ""), b.player || b.tts ? "info" : "warning"];
+    }
+    return ["AUDIO OFF", "muted"];
+  }
+  return { SEV, LABEL, ICON, TTL_MS, TONES, tonesFor, toneLength, shouldPlay, alertKey, canClaim, ToastStack, routeText };
+})();
+</script>
+<script>
+"use strict";
+const WINDOW_S = 180;
+const SAMPLE_DT = 0.25;
+const $ = id => document.getElementById(id);
+const isNum = v => typeof v === "number" && isFinite(v) && Math.abs(v) <= 1e30;
+const num = v => (isNum(v) ? v : null);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const arr = v => (Array.isArray(v) ? v : []);
+
+const PREFIXES = ["ACTOR_LOCOMOTION_STATE_", "ACTOR_CREW_ROLE_", "VEHICLE_TYPE_", "VEHICLE_MASTER_MODE_",
+  "VEHICLE_COMPONENT_DEPLOYMENT_STATE_", "ANNUNCIATOR_STATE_", "COUNTERMEASURE_TYPE_", "GAME_EVENT_TYPE_",
+  "DOOR_OPEN_STATE_", "DOOR_LOCK_STATE_"];
+function short(v) {
+  if (typeof v !== "string" || !v) return null;
+  for (const p of PREFIXES) if (v.startsWith(p)) { v = v.slice(p.length); break; }
+  return v.replace(/_/g, " ");
+}
+// raw entity name for tooltips, entity id stripped (ids never shown in the UI)
+const noId = s => (typeof s === "string" ? s.trim().replace(/_\d{9,}$/, "") : "");
+// "GATS_BallisticGatling_S3_000000000003" -> "GATS Ballistic Gatling S3"
+function cleanName(s) {
+  if (typeof s !== "string" || !s.trim()) return null;
+  return s.trim().replace(/_\d{9,}$/, "").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/_+/g, " ").replace(/\s+/g, " ").trim() || null;
+}
+const fx = (v, d) => (isNum(v) ? v.toFixed(d) : null);
+const pct01 = v => (isNum(v) ? Math.round(clamp(v, 0, 1) * 100) : null);
+function fmtDist(m) {
+  if (!isNum(m)) return null;
+  const a = Math.abs(m);
+  if (a >= 100000) return (m / 1000).toFixed(0) + " km";
+  if (a >= 10000) return (m / 1000).toFixed(1) + " km";
+  return m.toFixed(a < 100 ? 1 : 0) + " m";
+}
+function fmtUec(s) {
+  if (s == null || s === "") return null;
+  try { return BigInt(String(s)).toLocaleString("en-US") + " aUEC"; } catch (e) { return String(s) + " aUEC"; }
+}
+const CARD = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+const cardinal = h => CARD[Math.round(((h % 360) + 360) % 360 / 45) % 8];
+const hhmmss = ms => new Date(ms).toLocaleTimeString("en-GB", { hour12: false });
+
+// ---- cached DOM writes ------------------------------------------------------
+function T(el, s, title) {
+  s = s == null || s === "" ? "—" : String(s);
+  if (el._t !== s) { el._t = s; el.textContent = s; }
+  if (title !== undefined) A(el, "title", title || "");
+}
+function A(el, k, v) {
+  const key = "_a_" + k;
+  if (el[key] === v) return;
+  el[key] = v;
+  if (v == null) el.removeAttribute(k); else el.setAttribute(k, v);
+}
+function H(el, hide) { hide = !!hide; if (el._h !== hide) { el._h = hide; el.hidden = hide; } }
+function S(el, prop, v) { const key = "_s_" + prop; if (el[key] !== v) { el[key] = v; el.style.setProperty(prop, v); } }
+function badge(el, text, tone) { T(el, text); A(el, "data-tone", tone || "muted"); }
+function mk(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+// ---- meters -----------------------------------------------------------------
+function mkMeter(parent, label) {
+  const row = mk("div", "meter");
+  row.setAttribute("role", "meter"); row.setAttribute("aria-label", label);
+  row.setAttribute("aria-valuemin", "0"); row.setAttribute("aria-valuemax", "100");
+  const lab = mk("span", "m-label", label), tr = mk("span", "m-track"), fill = mk("span", "m-fill"), out = mk("output");
+  tr.append(fill); row.append(lab, tr, out); parent.append(row);
+  return { row, fill, out };
+}
+function setMeter(m, p, text, sevOverride) {
+  if (p == null || !isNum(p)) {
+    S(m.fill, "transform", "scaleX(0)"); A(m.row, "data-sev", "none"); A(m.row, "aria-valuenow", null);
+    T(m.out, text === undefined ? null : text); return;
+  }
+  const c = clamp(p, 0, 100);
+  S(m.fill, "transform", "scaleX(" + (c / 100).toFixed(3) + ")");
+  A(m.row, "data-sev", sevOverride || (c < 25 ? "critical" : c < 50 ? "warning" : "nominal"));
+  A(m.row, "aria-valuenow", String(Math.round(c)));
+  T(m.out, text == null ? Math.round(c) + "%" : text);
+}
+const gaugePct = g => {
+  if (!g) return null;
+  const c = num(g.current), mx = num(g.max);
+  if (c == null) return null;
+  return mx && mx > 0 ? (c / mx) * 100 : c * 100;
+};
+
+// ---- keyed chip groups (rebuild only when key set changes) ------------------
+function syncChips(box, keys, labelFn) {
+  const sig = keys.join("|");
+  if (box._sig === sig) return box._map;
+  box._sig = sig; box.textContent = "";
+  const map = {};
+  if (!keys.length) box.append(mk("span", "empty-note", "—"));
+  for (const k of keys) {
+    const c = mk("span", labelFn(k).length > 16 ? "chip chip-wide" : "chip"), l = mk("span", "c-l", labelFn(k)), s = mk("b", "c-s");
+    c.append(l, s); box.append(c); map[k] = { el: c, s };
+  }
+  box._map = map; return map;
+}
+function chip(ch, state, stateText, title) { A(ch.el, "data-s", state); T(ch.s, stateText); A(ch.el, "title", title || null); }
+const labelize = k => k.replace(/^ifcs_/, "").replace(/_/g, " ").toUpperCase();
+const POWER_L = { powerplants: "Power plant", engines: "Engines", weapons: "Weapons", coolers: "Coolers", life_support: "Life support",
+  sensors: "Sensors", shield_generators: "Shield gen", shield_emitters: "Shield emit", gravity_generators: "Grav gen" };
+const ASSIST_L = { ifcs_coupled: "Coupled", ifcs_esp: "ESP", ifcs_gravity_compensation: "Grav comp", ifcs_g_safe: "G-safe",
+  ifcs_cruise_mode: "Cruise", ifcs_speed_limiter: "Spd limiter", ifcs_proximity_assist: "Prox assist",
+  ifcs_proximity_assist_landing: "Prox landing", ifcs_stability: "Stability", ifcs_core: "Core",
+  ifcs_wind_compensation: "Wind comp", ifcs_command_behaviour: "Cmd behaviour" };
+const AUX_L = { advanced_hud_enabled_scm: "Adv HUD SCM", advanced_hud_enabled_nav: "Adv HUD NAV", advanced_hud_labels: "HUD labels",
+  course_prediction: "Course pred", flight_light_amplification: "Light amp", ifcs_spacebreak_enables_boost: "Brake→boost",
+  ifcs_g_safe_disabled_by_boost: "Boost kills G-safe" };
+const lab = (m) => k => m[k] || labelize(k);
+
+// ---- sparklines -------------------------------------------------------------
+const COL = { line: "#3b82f6", card: "#0f172a", cross: "rgba(148,163,184,0.6)" };
+const DPR = () => Math.min(window.devicePixelRatio || 1, 2);
+class Spark {
+  constructor(tile, o) {
+    this.c = tile.querySelector("canvas"); this.tip = tile.querySelector(".tip");
+    this.ctx = this.c.getContext("2d"); this.o = o; this.t = []; this.v = [];
+    this.hover = -1; this.dirty = true; this.w = 0; this.h = 0; this.lastAria = 0;
+    new ResizeObserver(() => this.resize()).observe(this.c);
+    const move = e => { const r = this.c.getBoundingClientRect(); this.hoverAt(e.clientX - r.left); };
+    this.c.addEventListener("pointermove", move);
+    this.c.addEventListener("pointerdown", move);
+    this.c.addEventListener("pointerleave", () => { this.hover = -1; this.dirty = true; scheduleRender(); });
+    this.c.addEventListener("focus", () => { this.hover = this.t.length - 1; this.dirty = true; scheduleRender(); });
+    this.c.addEventListener("blur", () => { this.hover = -1; this.dirty = true; scheduleRender(); });
+    this.c.addEventListener("keydown", e => {
+      if (!this.t.length) return;
+      if (e.key === "ArrowLeft") this.hover = Math.max(0, (this.hover < 0 ? this.t.length - 1 : this.hover) - 4);
+      else if (e.key === "ArrowRight") this.hover = Math.min(this.t.length - 1, (this.hover < 0 ? 0 : this.hover) + 4);
+      else if (e.key === "End") this.hover = this.t.length - 1;
+      else return;
+      e.preventDefault(); this.dirty = true; scheduleRender();
+    });
+  }
+  resize() {
+    const r = this.c.getBoundingClientRect(), d = DPR();
+    this.w = r.width; this.h = r.height;
+    this.c.width = Math.max(1, Math.round(r.width * d)); this.c.height = Math.max(1, Math.round(r.height * d));
+    this.dirty = true; scheduleRender();
+  }
+  trim() {
+    if (!this.t.length) return;
+    const lo = this.t[this.t.length - 1] - WINDOW_S;
+    let i = 0; while (i < this.t.length && this.t[i] < lo) i++;
+    if (i) { this.t.splice(0, i); this.v.splice(0, i); if (this.hover >= 0) this.hover = Math.max(0, this.hover - i); }
+  }
+  push(t, v) {
+    if (!isNum(t)) return;
+    if (this.t.length && t <= this.t[this.t.length - 1]) return;
+    this.t.push(t); this.v.push(num(v)); this.trim(); this.dirty = true;
+  }
+  seed(ts, vs) {
+    const keepT = [], keepV = [];
+    const lastH = ts.length ? ts[ts.length - 1] : -Infinity;
+    for (let i = 0; i < this.t.length; i++) if (this.t[i] > lastH) { keepT.push(this.t[i]); keepV.push(this.v[i]); }
+    this.t = []; this.v = [];
+    for (let i = 0; i < ts.length; i++) if (isNum(ts[i]) && (!this.t.length || ts[i] > this.t[this.t.length - 1])) { this.t.push(ts[i]); this.v.push(num(vs[i])); }
+    for (let i = 0; i < keepT.length; i++) { this.t.push(keepT[i]); this.v.push(keepV[i]); }
+    this.trim(); this.hover = -1; this.dirty = true;
+  }
+  hoverAt(x) {
+    if (!this.t.length || !this.w) return;
+    const tEnd = this.t[this.t.length - 1], tx = tEnd - WINDOW_S + (x / (this.w - 8)) * WINDOW_S;
+    let lo = 0, hi = this.t.length - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (this.t[m] < tx) lo = m; else hi = m; }
+    const i = Math.abs(this.t[lo] - tx) < Math.abs(this.t[hi] - tx) ? lo : hi;
+    if (i !== this.hover) { this.hover = i; this.dirty = true; scheduleRender(); }
+  }
+  range() {
+    let mn = Infinity, mx = -Infinity;
+    for (const v of this.v) if (v != null) { if (v < mn) mn = v; if (v > mx) mx = v; }
+    const o = this.o;
+    if (o.fixed) return o.fixed;
+    if (mn === Infinity) return [0, 1];
+    if (o.floor0) mn = Math.min(0, mn);
+    if (mx - mn < o.minSpan) { const mid = o.floor0 ? mn + o.minSpan / 2 : (mx + mn) / 2; mn = o.floor0 ? mn : mid - o.minSpan / 2; mx = mid + o.minSpan / 2; }
+    const pad = (mx - mn) * 0.08;
+    return [o.floor0 ? mn : mn - pad, mx + pad];
+  }
+  draw() {
+    if (!this.dirty || !this.w) return;
+    this.dirty = false;
+    const ctx = this.ctx, d = DPR(), W = this.w, Hh = this.h, padR = 8, padY = 5;
+    ctx.setTransform(d, 0, 0, d, 0, 0); ctx.clearRect(0, 0, W, Hh);
+    const [lo, hi] = this.range(), n = this.t.length;
+    const y = v => Hh - padY - ((v - lo) / (hi - lo || 1)) * (Hh - 2 * padY);
+    // no drawn baseline: the tinted .chart box (same box in every tile, incl. the heading tape) is the frame
+    if (!n) { H(this.tip, true); return; }
+    const tEnd = this.t[n - 1], x = t => ((t - (tEnd - WINDOW_S)) / WINDOW_S) * (W - padR);
+    ctx.strokeStyle = COL.line; ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.beginPath();
+    let pen = false, prevT = 0;
+    for (let i = 0; i < n; i++) {
+      const v = this.v[i];
+      if (v == null || (pen && this.t[i] - prevT > 2)) { pen = false; if (v == null) continue; }
+      const px = x(this.t[i]), py = y(v);
+      if (pen) ctx.lineTo(px, py); else { ctx.moveTo(px, py); pen = true; }
+      prevT = this.t[i];
+    }
+    ctx.stroke();
+    const dot = (i, r) => {
+      const v = this.v[i]; if (v == null) return;
+      ctx.beginPath(); ctx.arc(x(this.t[i]), y(v), r, 0, Math.PI * 2);
+      ctx.fillStyle = COL.line; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = COL.card; ctx.stroke();
+    };
+    dot(n - 1, 3.5);
+    if (this.hover >= 0 && this.hover < n) {
+      const hx = x(this.t[this.hover]);
+      ctx.strokeStyle = COL.cross; ctx.lineWidth = 1; ctx.setLineDash([2, 2]); ctx.beginPath();
+      ctx.moveTo(Math.round(hx) + 0.5, 0); ctx.lineTo(Math.round(hx) + 0.5, Hh); ctx.stroke(); ctx.setLineDash([]);
+      dot(this.hover, 4);
+      const v = this.v[this.hover], ago = Math.round(tEnd - this.t[this.hover]);
+      T(this.tip, (v == null ? "—" : this.o.fmt(v) + " " + this.o.unit) + " · " + (ago <= 0 ? "now" : "-" + ago + "s"));
+      H(this.tip, false); const tw = this.tip.offsetWidth / 2;
+      S(this.tip, "left", clamp(hx, tw, Math.max(tw, W - tw)) + "px");
+    } else H(this.tip, true);
+    const now = performance.now();
+    if (now - this.lastAria > 3000) {
+      this.lastAria = now;
+      let mn = Infinity, mx = -Infinity; for (const v of this.v) if (v != null) { mn = Math.min(mn, v); mx = Math.max(mx, v); }
+      const last = this.v[n - 1];
+      A(this.c, "aria-label", this.o.label + ", last 180 seconds" + (mn === Infinity ? ": no data" :
+        ": now " + (last == null ? "no value" : this.o.fmt(last) + " " + this.o.unit) + ", min " + this.o.fmt(mn) + ", max " + this.o.fmt(mx)));
+    }
+  }
+}
+const f1 = v => v.toFixed(1), f0 = v => Math.round(v).toString(), fp = v => Math.round(v * 100) + "";
+const SPARKS = {
+  speed: new Spark($("t-speed"), { label: "Speed", unit: "m/s", fmt: f0, floor0: true, minSpan: 10 }),
+  g: new Spark($("t-g"), { label: "G-load", unit: "G", fmt: f1, floor0: true, minSpan: 2 }),
+  boost: new Spark($("t-boost"), { label: "Boost reserves", unit: "%", fmt: fp, fixed: [0, 1.02] }),
+  shield: new Spark($("t-shield"), { label: "Shield level", unit: "%", fmt: fp, fixed: [0, 1.02] }),
+  heart_rate: new Spark($("t-hr"), { label: "Heart rate", unit: "bpm", fmt: f0, floor0: false, minSpan: 10 }),
+};
+const SERIES = ["speed", "g", "heart_rate", "shield", "boost", "vsi", "hydrogen", "hull"];
+
+// same extraction as the server's 4 Hz sampler; used only when snapshots carry no "sample"
+function extractSample(f, t) {
+  const vs = f?.vehicle?.state, ins = vs?.flight?.instruments;
+  return { t, speed: num(ins?.speed), g: num(ins?.g_meter?.current), heart_rate: num(f?.actor?.vitals?.heart_rate),
+    shield: num(vs?.shields?.level), boost: num(ins?.boost?.reserves), vsi: num(ins?.vertical_speed_indicator),
+    hydrogen: num(ins?.hydrogen_fuel), hull: num(vs?.health) };
+}
+let lastPushT = 0;
+function pushSample(s) {
+  // server attaches a sample to every 20 Hz snapshot; keep the client buffer at the 4 Hz history rate
+  if (!s || !isNum(s.t) || s.t - lastPushT < SAMPLE_DT - 0.01) return;
+  lastPushT = s.t;
+  for (const k in SPARKS) SPARKS[k].push(s.t, s[k]);
+}
+
+// ---- heading tape -----------------------------------------------------------
+const PX_PER_DEG = 2;
+const tape = $("tape"), SVGNS = "http://www.w3.org/2000/svg";
+const tapeG = document.createElementNS(SVGNS, "g");
+(function buildTape() {
+  let html = "";
+  for (let d = -180; d <= 540; d += 5) {
+    const x = d * PX_PER_DEG, n = ((d % 360) + 360) % 360, major = n % 45 === 0, ten = n % 10 === 0;
+    const h = major ? 12 : ten ? 8 : 4;
+    html += `<line x1="${x}" x2="${x}" y1="0" y2="${h}" stroke="${major ? "rgba(248,250,252,.7)" : "rgba(148,163,184,.45)"}" stroke-width="1"/>`;
+    if (major) html += `<text class="card" x="${x}" y="26" text-anchor="middle">${CARD[n / 45]}</text>`;
+    else if (n % 30 === 0) html += `<text x="${x}" y="25" text-anchor="middle">${n}</text>`;
+  }
+  tapeG.innerHTML = html;
+  tape.append(tapeG);
+  const mark = document.createElementNS(SVGNS, "path");
+  mark.setAttribute("d", "M-5,40 L0,32 L5,40 Z"); mark.setAttribute("fill", "#3b82f6"); tape.append(mark);
+  const ctr = document.createElementNS(SVGNS, "line");
+  ["x1", "x2"].forEach(a => ctr.setAttribute(a, "0")); ctr.setAttribute("y1", "0"); ctr.setAttribute("y2", "30");
+  ctr.setAttribute("stroke", "#3b82f6"); ctr.setAttribute("stroke-width", "1.5"); tape.append(ctr);
+  new ResizeObserver(() => {
+    const w = tape.getBoundingClientRect().width || 180;
+    tape.setAttribute("viewBox", `${-w / 2} 0 ${w} 44`);
+  }).observe(tape);
+})();
+
+// ---- static structures built once --------------------------------------------
+const vit = $("vitals");
+const VM = { health: mkMeter(vit, "Health"), oxygen: mkMeter(vit, "Oxygen"), hunger: mkMeter(vit, "Hunger"), thirst: mkMeter(vit, "Thirst") };
+const sm = $("shipMeters");
+const SM = { hull: mkMeter(sm, "Hull"), hydrogen: mkMeter(sm, "Hydrogen"), quantum: mkMeter(sm, "Quantum") };
+const SHM = mkMeter($("shieldMeter"), "Overall");
+const ffm = $("ffMeters");
+const FFM = { gunfire: mkMeter(ffm, "Gunfire"), stick_shaker: mkMeter(ffm, "Stick shaker") };
+const FFA = {};
+(function buildAxes() {
+  const g = $("ffAxes");
+  g.append(mk("span", "rl micro", ""), ...["X", "Y", "Z"].map(a => mk("span", "micro h", a)));
+  for (const [grp, fld] of [["angular", "resistance"], ["angular", "damping"], ["linear", "resistance"], ["linear", "damping"]]) {
+    g.append(mk("span", "rl", grp + " " + fld));
+    for (const ax of ["x", "y", "z"]) { const c = mk("span", null, "—"); g.append(c); FFA[grp + fld + ax] = c; }
+  }
+})();
+
+const ANN = ["pwr", "wpn", "thr", "shld", "cool", "qdrv", "radr", "prox", "hit", "misl"];
+const ANN_L = { pwr: "Power", wpn: "Weapons", thr: "Thrusters", shld: "Shields", cool: "Cooling", qdrv: "Quantum drive",
+  radr: "Radar", prox: "Proximity", hit: "Hit", misl: "Missile" };
+const annLevel = s => (!s ? 0 : s.includes("MAJOR") ? 2 : s.includes("MINOR") ? 1 : 0);
+const AT = {};
+(function buildAnn() {
+  const g = $("annun");
+  for (const k of ANN) {
+    const el = mk("div", "ann chamfer-sm"), code = mk("span", "a-code", k.toUpperCase()), st = mk("span", "a-state micro", "—"), bang = mk("span", "a-bang", "!");
+    bang.setAttribute("aria-hidden", "true"); el.append(code, st, bang); el.title = ANN_L[k];
+    el.setAttribute("role", "status"); g.append(el); AT[k] = { el, st };
+  }
+})();
+// ---- shield faces: rebuilt only when the face count / layout changes --------------
+const SHIELD_SHORT = { bubble: "BUBBLE", front_back: "F / B", quadrant: "QUAD", quadrant_top_bottom: "6-FACE" };
+function svgEl(tag, attrs) { const e = document.createElementNS(SVGNS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; }
+function arcD(r, a0, a1) {
+  const p = a => [(r * Math.cos(a * Math.PI / 180)).toFixed(2), (r * Math.sin(a * Math.PI / 180)).toFixed(2)];
+  const [x0, y0] = p(a0), [x1, y1] = p(a1);
+  return "M" + x0 + "," + y0 + " A" + r + "," + r + " 0 " + (a1 - a0 > 180 ? 1 : 0) + " 1 " + x1 + "," + y1;
+}
+function syncFaces(n, cls) {
+  const box = $("faces"), L = StateLogic.faceLayout(n, AS.faces, cls);
+  const key = n + "|" + L.layout + "|" + L.labels.join(",") + "|" + L.ring.join(",") + "|" + L.pips.join(",");
+  if (box._key === key) return box._v;
+  box._key = key; box.textContent = "";
+  const v = { L, face: [], row: [], c2: null };
+  if (!n) { box.append(mk("p", "face-note", "No face data.")); box._v = v; return v; }
+  const svg = svgEl("svg", { class: "sh-ring", viewBox: "-50 -50 100 100", role: "img", "aria-label": "Shield layout: " + L.title });
+  svg.append(svgEl("circle", { class: "trk", r: 40 }));
+  for (const sg of L.segs) {
+    const e = sg.full ? svgEl("circle", { class: "seg", r: 40 }) : svgEl("path", { class: "seg", d: arcD(40, sg.a0, sg.a1) });
+    svg.append(e); v.face[sg.face] = e;
+  }
+  L.pips.forEach((fi, j) => { const e = svgEl("circle", { class: "pip", r: 5, cx: 0, cy: j ? 25 : -25 }); svg.append(e); v.face[fi] = e; });
+  const c1 = svgEl("text", { "text-anchor": "middle", y: -3 }); c1.textContent = SHIELD_SHORT[L.layout] || n + " FACES";
+  const c2 = svgEl("text", { class: "c2", "text-anchor": "middle", y: 12 }); c2.textContent = "—";
+  svg.append(c1, c2); v.c2 = c2;
+  const list = mk("div", "face-list");
+  for (let i = 0; i < n; i++) {
+    const el = mk("div", "face chamfer-sm"), l = mk("span", "f-l micro", L.labels[i]), val = mk("span", "f-v", "—");
+    el.append(l, val); list.append(el); v.row.push({ el, val });
+  }
+  const note = L.layout === "bubble" ? "One shield bubble around the whole ship."
+    : !L.verified ? L.n + " faces (" + L.title.toLowerCase() + "). Face order unverified: labelled F1–F" + L.n + " in game order." : "";
+  if (note) list.append(mk("p", "face-note", note));
+  box.append(svg, list); box._v = v; return v;
+}
+const CMS_BASE = ["DECOY", "NOISE"];
+function syncCounters(keys) {
+  const box = $("cms"), sig = keys.join("|");
+  if (box._sig === sig) return box._map;
+  box._sig = sig; box.textContent = ""; const map = {};
+  for (const k of keys) {
+    const el = mk("div", "counter chamfer-sm"), l = mk("div", "micro", k), v = mk("div", "cv", "—"), s = mk("div", "micro", "");
+    el.append(l, v, s); box.append(el); map[k] = { el, v, s };
+  }
+  box._map = map; return map;
+}
+syncCounters(CMS_BASE);
+function syncWeapons(list) {
+  const box = $("weapons"), sig = list.map(w => w?.name || "").join("|") + "#" + list.length;
+  if (box._sig === sig) return box._rows;
+  box._sig = sig; box.textContent = ""; const rows = [];
+  if (!list.length) box.append(mk("p", "empty-note", "No weapons reported."));
+  list.forEach((w, i) => {
+    const el = mk("div", "wpn chamfer-sm"), nm = mk("div", "wpn-name"), chips = mk("div", "chips");
+    const name = cleanName(w?.name) || "Weapon " + (i + 1);
+    nm.textContent = name; nm.title = noId(w?.name) || name;
+    const mkc = () => { const c = mk("span", "chip"), l = mk("span", "c-l"), s = mk("b", "c-s"); c.append(l, s); chips.append(c); return { el: c, l, s }; };
+    const pw = mkc(), rd = mkc(), ps = mkc();
+    el.append(nm, chips); box.append(el); rows.push({ pw, rd, ps });
+  });
+  box._rows = rows; return rows;
+}
+
+// ---- flight log ---------------------------------------------------------------
+const LOG_MAX = 100, logEl = $("log"), ICON = { critical: "✖", warning: "▲", nominal: "✓", info: "•", event: "◆", session: "⌖" };
+// bridge-side session events (Game.log): own icon + wording; detail never carries IP/session ids
+const SESSION_EV = {
+  SESSION_JOIN: ["⇥", "Joined shard "], SESSION_SHARD_CHANGE: ["⇄", "Shard changed → "], SESSION_SYSTEM: ["✦", "System: "],
+  SESSION_LEAVE: ["⇤", "Left shard "],
+};
+// bridge-side Game.log signal events: [icon, prefix, severity]; detail carries class names only
+const SIGNAL_EV = {
+  NEARBY_SHIP: ["◎", "Nearby: ", "info"], QT_ARRIVED: ["⇲", "", "info"], VEHICLE_RELEASED: ["⏏", "", "session"],
+  CORPSE_ITEMS: ["⚰", "", "session"], ZONE: ["◈", "Zone: ", "session"],
+};
+const ALERT_SEV = { info: "info", warn: "warning", critical: "critical" };
+const ZONE_SEV = { armistice: "nominal", ungoverned: "warning", monitored: "info", jurisdiction: "info" };
+let logN = 0;
+// key-coalesced entries: a key that flips again within FLAP_MS (e.g. G-safe toggled by boost)
+// updates its existing row ("xN") instead of flooding the log
+const FLAP_MS = 5000, lastByKey = {};
+function logChange(key, tMs, sev, msg) {
+  const prev = lastByKey[key];
+  if (prev && prev.li.parentNode === logEl && tMs - prev.t < FLAP_MS) {
+    prev.n++; prev.t = tMs;
+    updLi(prev.li, tMs, sev, msg + " (" + prev.n + " changes in burst)");
+    return;
+  }
+  lastByKey[key] = { li: addLog(tMs, sev, msg), t: tMs, n: 1 };
+}
+function placeLi(li, tMs) {
+  li._t = tMs;
+  if (li.parentNode) li.remove();
+  let ref = logEl.firstChild;
+  while (ref && ref._t > tMs) ref = ref.nextSibling;
+  logEl.insertBefore(li, ref);
+}
+function updLi(li, tMs, sev, text) {
+  li.dataset.sev = sev; li.children[1].textContent = ICON[sev] || "\u2022";
+  li.children[2].textContent = text; li.children[2].title = text;
+  li.children[0].textContent = hhmmss(tMs); li.setAttribute("aria-label", hhmmss(tMs) + " " + sev + ": " + text);
+  placeLi(li, tMs);
+}
+function addLog(tMs, sev, msg, icon) {
+  if (logN === 0) logEl.textContent = "";
+  const li = mk("li"); li.dataset.sev = sev; li._t = tMs;
+  const tm = mk("time", null, hhmmss(tMs)); tm.dateTime = new Date(tMs).toISOString();
+  const ic = mk("span", "ico", icon || ICON[sev] || "•"); ic.setAttribute("aria-hidden", "true");
+  const m = mk("span", "msg", msg); m.title = msg;
+  li.append(tm, ic, m);
+  li.setAttribute("aria-label", hhmmss(tMs) + " " + sev + ": " + msg);
+  placeLi(li, tMs);
+  logN++;
+  while (logN > LOG_MAX) { logEl.lastChild.remove(); logN--; }
+  T($("logCount"), logN + " / " + LOG_MAX);
+  return li;
+}
+// the bridge already folds the game's consecutive-frame repeats into one event and numbers each one
+const seenEvents = new Set();
+function ingestServerEvents(evs) {
+  for (const e of arr(evs).slice().reverse()) {   // oldest first
+    if (!e || !isNum(e.t)) continue;
+    const key = isNum(e.id) ? "#" + e.id : e.t + "|" + e.type;
+    if (seenEvents.has(key)) continue;
+    seenEvents.add(key);
+    if (seenEvents.size > 500) seenEvents.delete(seenEvents.values().next().value);
+    const se = SESSION_EV[e.type];
+    const sg = SIGNAL_EV[e.type];
+    if (e.type === "ALERT") { addLog(e.t * 1000, ALERT_SEV[e.severity] || "info", "Alert: " + (typeof e.detail === "string" ? e.detail : "?"), "!"); continue; }
+    if (se) addLog(e.t * 1000, "session", se[1] + (typeof e.detail === "string" ? e.detail : "?"), se[0]);
+    else if (sg) addLog(e.t * 1000, e.type === "ZONE" ? (ZONE_SEV[e.kind] || sg[2]) : sg[2],
+      sg[1] + (typeof e.detail === "string" ? e.detail : "?"), sg[0]);
+    else addLog(e.t * 1000, "event", "Game event: " + (short(e.type) || "?"));
+  }
+}
+function watchState(f) {
+  const vs = f?.vehicle?.state, fl = vs?.flight, st = fl?.settings, ins = fl?.instruments;
+  const cms = {};
+  for (const c of arr(f?.weapons?.countermeasures)) { const k = short(c?.type); if (k && isNum(c.amount)) cms[k] = c.amount; }
+  const ann = {}; const an = vs?.annunciators || {};
+  for (const k of Object.keys(an)) ann[k] = annLevel(an[k]);
+  return {
+    s: {
+      vehicle: cleanName(vs?.name), gear: short(fl?.state?.gear), vtol: short(fl?.state?.vtol), landed: fl?.state?.is_landed,
+      mode: short(vs?.master_mode?.mode), spooled: vs?.master_mode?.spooled, boostCrit: ins?.boost?.critical,
+      shGen: vs?.power?.shield_generators, shEmit: vs?.power?.shield_emitters,
+      coupled: st?.ifcs_coupled?.active, esp: st?.ifcs_esp?.active, gsafe: st?.ifcs_g_safe?.active, limiter: st?.ifcs_speed_limiter?.active,
+      loco: short(f?.actor?.state?.locomotion),
+    }, cms, ann,
+  };
+}
+const onoff = (name, warnOff) => (c) => c ? ["info", name + " ON"] : [warnOff ? "warning" : "info", name + " OFF"];
+const RULES = {
+  gear: c => [/ING$/.test(c) ? "warning" : "info", "Gear " + c],
+  vtol: c => [/ING$/.test(c) ? "warning" : "info", "VTOL " + c],
+  landed: c => c ? ["nominal", "Touchdown: landed"] : ["info", "Lift-off"],
+  mode: c => ["info", "Master mode " + c],
+  spooled: c => c ? ["nominal", "Master mode spooled"] : ["warning", "Master mode spooling"],
+  boostCrit: c => c ? ["critical", "Boost CRITICAL"] : ["nominal", "Boost recovered"],
+  shGen: c => c ? ["nominal", "Shield generators ON"] : ["warning", "Shield generators OFF"],
+  shEmit: c => c ? ["nominal", "Shield emitters ON"] : ["warning", "Shield emitters OFF"],
+  coupled: c => c ? ["info", "IFCS coupled"] : ["warning", "IFCS decoupled"],
+  esp: onoff("ESP", false), gsafe: onoff("G-safe", true), limiter: onoff("Speed limiter", false),
+  loco: c => ["info", "Locomotion " + c],
+};
+// baseline keeps the last NON-null value per field, so a change spanning a frame where the field
+// is absent is still logged; vehicle-scoped fields re-baseline when a vehicle (re)appears
+let prevW = null, prevHasV = false, prevVeh = null, settleUntil = 0;
+// the game fills countermeasures/annunciators over ~0.3-0.5 s after ENTER_SEAT (0 -> 10 -> 48),
+// so vehicle-scoped fields keep re-baselining silently for this long after a vehicle (re)appears
+const VEH_SETTLE_MS = 1500;
+const cmBurst = {};
+const VEH_KEYS = ["gear", "vtol", "landed", "mode", "spooled", "boostCrit", "shGen", "shEmit", "coupled", "esp", "gsafe", "limiter"];
+function mergeNN(base, cur) { const o = { ...base }; for (const k in cur) if (cur[k] != null) o[k] = cur[k]; return o; }
+function deriveLog(f, nowMs) {
+  const w = watchState(f), hasV = !!f?.vehicle?.state, veh = w.s.vehicle;
+  if (!prevW) { prevW = w; prevHasV = hasV; prevVeh = veh; return; }   // first frame = baseline
+  if (veh !== prevVeh) logChange("vehicle", nowMs, "info", veh ? "Vehicle: " + veh : "Left vehicle" + (prevVeh ? " " + prevVeh : ""));
+  const rebase = hasV && (!prevHasV || (veh != null && prevVeh != null && veh !== prevVeh));
+  prevHasV = hasV; prevVeh = veh;
+  const p = prevW.s, c = w.s;
+  if (rebase) settleUntil = nowMs + VEH_SETTLE_MS;
+  if (nowMs < settleUntil) {   // new/other vehicle still settling: baseline, not changes (no false "rearmed")
+    const s = mergeNN(p, c);
+    if (rebase) for (const k of VEH_KEYS) s[k] = c[k];
+    for (const k in cmBurst) cmBurst[k] = null;
+    prevW = rebase ? { s, cms: w.cms, ann: w.ann } : { s, cms: mergeNN(prevW.cms, w.cms), ann: mergeNN(prevW.ann, w.ann) };
+    if (p.loco != null && c.loco != null && p.loco !== c.loco) { const [sev, msg] = RULES.loco(c.loco); logChange("loco", nowMs, sev, msg); }
+    return;
+  }
+  for (const k in RULES) {
+    if (p[k] == null || c[k] == null || p[k] === c[k]) continue;
+    const [sev, msg] = RULES[k](c[k]); logChange(k, nowMs, sev, msg);
+  }
+  for (const k in w.ann) {
+    const a = prevW.ann[k], b = w.ann[k];
+    if (a == null || a === b) continue;
+    const nm = (ANN_L[k] || k).toUpperCase();
+    if (b === 2) logChange("ann_" + k, nowMs, "critical", nm + " annunciator MAJOR");
+    else if (b === 1) logChange("ann_" + k, nowMs, "warning", nm + " annunciator MINOR");
+    else logChange("ann_" + k, nowMs, "nominal", nm + " annunciator cleared");
+  }
+  for (const k in w.cms) {
+    const a = prevW.cms[k], b = w.cms[k];
+    if (a == null || a === b) continue;
+    const t = k.charAt(0) + k.slice(1).toLowerCase(), burst = cmBurst[k];
+    if (b < a) {
+      // consecutive drops within FLAP_MS merge into one "launched xN" row
+      if (burst && burst.li.parentNode === logEl && nowMs - burst.t < FLAP_MS) {
+        burst.t = nowMs; burst.n += a - b;
+        updLi(burst.li, nowMs, b < 5 ? "warning" : "info", t + " launched x" + burst.n + " (" + b + " left)");
+      } else cmBurst[k] = { li: addLog(nowMs, b < 5 ? "warning" : "info", t + " launched x" + (a - b) + " (" + b + " left)"), t: nowMs, n: a - b };
+    } else { cmBurst[k] = null; addLog(nowMs, "nominal", t + " rearmed (" + b + ")"); }
+  }
+  prevW = { s: mergeNN(p, c), cms: mergeNN(prevW.cms, w.cms), ann: mergeNN(prevW.ann, w.ann) };
+}
+
+// ---- controls: game action triggers ----------------------------------------------
+const CTL_GROUPS = [
+  { id: "flight", title: "Flight", cats: ["spaceship_movement"], full: true },
+  { id: "power", title: "Power", cats: ["spaceship_power"] },
+  { id: "lights", title: "Lights", cats: ["lights_controller"] },
+  { id: "doors", title: "Doors & Ports", cats: ["spaceship_general"] },
+  { id: "seat", title: "Seat & Modes", cats: ["seat_general"] },
+  { id: "nav", title: "Nav & Comms", cats: ["spaceship_quantum", "spaceship_docking", "spaceship_target_hailing", "spaceship_radar"] },
+  { id: "player", title: "Player", cats: ["player"] },
+  { id: "other", title: "Other", cats: [] },
+  { id: "emotes", title: "Emotes", cats: ["player_emotes"], collapsed: true, full: true },
+  { id: "danger", title: "Danger Zone", cats: [], collapsed: true, danger: true },
+];
+const CAT_GROUP = {};
+for (const g of CTL_GROUPS) for (const c of g.cats) CAT_GROUP[c] = g.id;
+// multi-category groups are titled from the categories actually present (danger-moved ones excluded)
+const CAT_TITLE = { spaceship_quantum: "Quantum", spaceship_docking: "Docking", spaceship_target_hailing: "Comms", spaceship_radar: "Radar" };
+const DANGEROUS_FALLBACK = ["v_self_destruct", "v_eject", "v_emergency_exit", "v_power_set_off", "v_power_toggle",
+  "v_power_set_thrusters_off", "v_power_toggle_thrusters", "v_toggle_qdrive_engagement"];
+const CLICK_GUARD_MS = 600, FLASH_MS = 1500, ARM_MS = 3000, HOLD_MIN = 100, HOLD_MAX = 5000, TAP_MS = 200;
+const CTL = { actions: [], dangerous: new Set(DANGEROUS_FALLBACK), source: "", error: null, loaded: false,
+  fetchCtl: null, timer: 0, btns: {}, sig: "", reason: undefined, noVeh: undefined, armed: null, infoFor: null };
+const WORD = { ifcs: "IFCS", qdrive: "QT", hud: "HUD", atc: "ATC", vtol: "VTOL", esp: "ESP", scm: "SCM", nav: "NAV", gmeter: "G-meter", gsafe: "G-safe",
+  gforce: "G-force", flightready: "Flight Ready", doorlocks: "Door Locks", portlocks: "Port Locks", atease: "At Ease" };
+const LABEL = { v_ifcs_toggle_gforce_safety: "IFCS G-safe Toggle" };   // same feature as v_ifcs_gsafe_on/off
+// "v_ifcs_toggle_esp" -> "IFCS Toggle ESP"; emotes drop their "emote_" prefix (the group says it)
+function actionLabel(name) {
+  if (LABEL[name]) return LABEL[name];
+  const words = String(name).replace(/^v_/, "").replace(/^emote_/, "").split("_").filter(Boolean);
+  return words.map(w => WORD[w] || (/^\d+$/.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1))).join(" ") || name;
+}
+// sort key so variants sit together: stem (name minus toggle/on/off/... words), then toggle < on < off
+const VARIANT_RANK = { toggle: 0, cycle: 0, on: 1, open: 1, deploy: 1, lock: 1, off: 2, close: 2, retract: 2, unlock: 2, set: null };
+function variantKey(name) {
+  const w = String(name).replace(/^v_/, "").replace(/gforce_safety/, "gsafe").replace(/(door|port)locks/, "$1s_lock").split("_");
+  let rank = 0, hasRank = false, lock = false; const stem = [];
+  for (const x of w) {
+    if (!(x in VARIANT_RANK)) { stem.push(x); continue; }
+    if (x === "lock" || x === "unlock") lock = true;
+    const r = VARIANT_RANK[x];
+    if (r != null) { rank = hasRank ? Math.min(rank, r) : r; hasRank = true; }
+  }
+  if (lock) stem.push("lock");
+  return { stem: stem.join("_"), rank };
+}
+function sortVariants(list) {
+  const first = {}, keys = list.map(a => variantKey(a.action_name));
+  keys.forEach((k, i) => { if (!(k.stem in first)) first[k.stem] = i; });
+  return list.map((a, i) => ({ a, k: keys[i], i })).sort((x, y) =>
+    first[x.k.stem] - first[y.k.stem] || x.k.rank - y.k.rank || x.i - y.i).map(o => o.a);
+}
+let liveT = 0;
+function announce(msg) {   // screen-reader feedback for trigger results (one polite live region)
+  const el = $("ctlLive"); clearTimeout(liveT);
+  el.textContent = "";
+  liveT = setTimeout(() => { el.textContent = msg; }, 60);   // clear first so a repeated message is re-read
+}
+const isVehicleAction = a => /^spaceship_|^lights_controller$|^seat_general$/.test(a.category) || CTL.dangerous.has(a.action_name);
+const shortStatus = s => String(s || "?").replace(/^TRIGGER_GAME_ACTION_STATUS_/, "").replace(/_/g, " ");
+function statusTone(s) {
+  const k = String(s || "").replace(/^TRIGGER_GAME_ACTION_STATUS_/, "");
+  return k === "OK" ? "ok" : k === "RATE_LIMITED" || k === "MAP_INACTIVE" ? "warn" : "crit";
+}
+
+// shared action -> telemetry state map + shield face layouts, served by the bridge from scgameapi/data/
+const AS = { map: null, index: null, faces: null, unsupported: new Set(), timer: 0, ctl: null };
+function loadStateMaps() {
+  clearTimeout(AS.timer);
+  if (AS.ctl) AS.ctl.abort();
+  const ctl = new AbortController(); AS.ctl = ctl;
+  const get = u => fetch(u, { signal: ctl.signal, cache: "no-store" }).then(r => { if (!r.ok) throw new Error(u + " HTTP " + r.status); return r.json(); });
+  Promise.allSettled([get("/api/action-states"), get("/api/shield-faces")]).then(([a, fc]) => {
+    if (AS.ctl !== ctl) return;
+    AS.ctl = null;
+    if (a.status === "fulfilled" && a.value && Array.isArray(a.value.groups)) { AS.map = a.value; AS.index = StateLogic.indexMap(a.value); }
+    else if (a.reason?.name !== "AbortError") console.warn("action-states unavailable:", a.reason?.message || a.value);
+    if (fc.status === "fulfilled" && fc.value && typeof fc.value === "object") AS.faces = fc.value;
+    if (!AS.index || !AS.faces) AS.timer = setTimeout(loadStateMaps, 10000);
+    $("faces")._key = null; scheduleRender();
+  });
+}
+
+function loadActions() {
+  clearTimeout(CTL.timer);
+  if (CTL.fetchCtl) CTL.fetchCtl.abort();
+  const ctl = new AbortController(); CTL.fetchCtl = ctl;
+  const kill = setTimeout(() => ctl.abort(), 8000);
+  fetch("/api/actions", { signal: ctl.signal, cache: "no-store" })
+    .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(d => {
+      const list = Array.isArray(d?.actions) ? d.actions : [];
+      CTL.actions = list.filter(a => a && typeof a.action_name === "string" && /^[a-z0-9_]{1,64}$/.test(a.action_name))
+        .map(a => ({ action_name: a.action_name, category: typeof a.category === "string" && a.category ? a.category : "other", holdable: a.holdable === true }));
+      if (Array.isArray(d?.dangerous) && d.dangerous.length) CTL.dangerous = new Set(d.dangerous.filter(x => typeof x === "string"));
+      CTL.source = typeof d?.source === "string" ? d.source : "";
+      CTL.error = typeof d?.error === "string" ? d.error : null;
+      CTL.loaded = true;
+    })
+    .catch(err => {
+      if (err.name === "AbortError" && CTL.fetchCtl !== ctl) return;   // superseded by a newer fetch
+      CTL.error = err.name === "AbortError" ? "timed out" : err.message; CTL.loaded = true;
+    })
+    .finally(() => {
+      clearTimeout(kill);
+      if (CTL.fetchCtl !== ctl) return;
+      CTL.fetchCtl = null;
+      buildControls(); CTL.reason = undefined; CTL.noVeh = undefined; scheduleRender();
+      CTL.timer = setTimeout(loadActions, CTL.actions.length ? 60000 : 10000);
+    });
+}
+
+function buildControls() {
+  const sig = CTL.actions.map(a => a.action_name + (a.holdable ? "*" : "") + "@" + a.category).join(",") + "|" + [...CTL.dangerous].join(",");
+  if (sig === CTL.sig) return;
+  CTL.sig = sig; disarm();
+  const box = $("ctlGroups"), open = {};
+  box.querySelectorAll("details[data-g]").forEach(d => { open[d.dataset.g] = d.open; });   // keep expanded state across rebuilds
+  box.textContent = ""; CTL.btns = {};
+  const buckets = {};
+  for (const a of CTL.actions) {
+    const gid = CTL.dangerous.has(a.action_name) ? "danger" : CAT_GROUP[a.category] || "other";
+    (buckets[gid] = buckets[gid] || []).push(a);
+  }
+  for (const g of CTL_GROUPS) {
+    const list = buckets[g.id];
+    if (!Array.isArray(list) || !list.length) continue;
+    const grid = mk("div", "ctl-grid");
+    for (const a of sortVariants(list)) grid.append(mkCtlBtn(a, g.danger));
+    let title = g.title;
+    if (g.cats.length > 1) {
+      const present = g.cats.filter(c => list.some(a => a.category === c)).map(c => CAT_TITLE[c] || c);
+      if (present.length) title = present.join(" / ");
+    }
+    const count = mk("span", "ctl-count", "(" + list.length + ")");
+    let wrap;
+    if (g.collapsed) {
+      wrap = mk("details", "ctl-group" + (g.danger ? " ctl-danger chamfer-sm" : ""));
+      wrap.dataset.g = g.id; wrap.open = !!open[g.id];
+      const sum = mk("summary"), caret = mk("span", "caret micro", "▸"); caret.setAttribute("aria-hidden", "true");
+      sum.append(caret, mk("span", "micro", (g.danger ? "⚠ " : "") + title), count);
+      wrap.append(sum);
+      if (g.danger) wrap.append(mk("p", "ctl-warn", "Irreversible or ship-losing. Each button needs two separate presses: the first arms it, the second (within 3 s) sends. Holding a key does not confirm. Esc, clicking away or leaving the tab disarms."));
+      wrap.append(grid);
+    } else {
+      wrap = mk("div", "ctl-group");
+      const h = mk("h3", "micro sub-h", title); h.append(count); wrap.append(h, grid);
+    }
+    if (g.full) wrap.classList.add("full");
+    box.append(wrap);
+  }
+}
+
+function mkCtlBtn(a, danger) {
+  const el = mk("button", "ctl-btn chamfer-sm"), l = mk("span", "ctl-l", actionLabel(a.action_name)), s = mk("span", "ctl-s micro", "");
+  const v = mk("span", "ctl-v"), vd = mk("i", "ctl-dot"), vt = mk("span", "ctl-vt", ""), vq = mk("span", "ctl-q", "?");
+  const nd = mk("span", "", ""); nd.id = "ctlnd-" + a.action_name; nd.hidden = true;   // aria-describedby target (notes)
+  vd.setAttribute("aria-hidden", "true"); vq.setAttribute("aria-hidden", "true"); v.append(vd, vt, vq); v.hidden = true; v._h = true; vq.hidden = true; vq._h = true;
+  el.type = "button"; el.dataset.action = a.action_name; el.append(l, v, s, nd);
+  const b = { a, el, l, s, v, vt, vq, nd, notes: "", danger: !!danger, holdable: a.holdable, busy: false, lastPress: 0, flashT: 0,
+    hint: danger ? "2-STEP" : a.holdable ? "TAP / HOLD ≤5s" : "", vehicle: isVehicleAction(a), holdStart: 0, holdTick: 0,
+    holdOut: false, keyDown: false, armReleased: true, armUntil: 0 };
+  if (b.holdable) el.dataset.hold = "";
+  b.aria = actionLabel(a.action_name) + (danger ? " (dangerous, two-step confirm)" : b.holdable ? " (tap, or press and hold to send a timed hold)" : "");
+  el.setAttribute("aria-label", b.aria);
+  CTL.btns[a.action_name] = b;
+  idleBtn(b);
+  // key auto-repeat must never activate: a held Enter would otherwise re-click every repeat
+  // (re-firing toggles, and arming + confirming a danger button from one press)
+  el.addEventListener("keydown", ev => {
+    if (ev.key !== "Enter" && ev.key !== " ") return;
+    if (ev.repeat) { ev.preventDefault(); return; }
+    b.keyDown = true;
+  });
+  el.addEventListener("keyup", ev => {
+    if (ev.key !== "Enter" && ev.key !== " ") return;
+    b.keyDown = false;
+    if (CTL.armed === b) b.armReleased = true;
+  });
+  el.addEventListener("click", ev => {
+    if (b.holdable && ev.detail > 0) return;   // pointer taps/holds on holdable buttons are handled by pointer events
+    press(b, null);
+  });
+  el.addEventListener("blur", () => { b.keyDown = false; if (CTL.armed === b) disarm(); });
+  if (b.holdable) {
+    el.addEventListener("contextmenu", ev => ev.preventDefault());
+    const outside = ev => { const r = el.getBoundingClientRect();
+      return ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom; };
+    el.addEventListener("pointerdown", ev => {
+      if (ev.button !== 0 || el.disabled) return;
+      try { el.setPointerCapture(ev.pointerId); } catch (e) { /* ignore */ }
+      holdBegin(b);
+    });
+    el.addEventListener("pointermove", ev => {   // drag off the button = release cancels
+      if (!b.holdStart) return;
+      const out = outside(ev);
+      if (out !== b.holdOut) { b.holdOut = out; A(el, "data-cancel", out ? "" : null); holdText(b); }
+    });
+    el.addEventListener("pointerup", ev => holdEnd(b, !outside(ev)));
+    el.addEventListener("pointercancel", () => holdEnd(b, false));
+    el.addEventListener("lostpointercapture", () => holdEnd(b, false));   // after pointerup this is a no-op
+    // keyboard: Space = press-and-hold, Enter = tap (native click, detail 0)
+    el.addEventListener("keydown", ev => { if (ev.key === " ") { ev.preventDefault(); if (!ev.repeat) holdBegin(b); } });
+    el.addEventListener("keyup", ev => { if (ev.key === " ") { ev.preventDefault(); holdEnd(b, true); } });
+    el.addEventListener("blur", () => holdEnd(b, false));
+  }
+  return el;
+}
+
+function setBtn(b, state, text) {
+  A(b.el, "data-state", state); T(b.s, text || " ");
+  A(b.el, "aria-busy", state === "busy" ? "true" : null);
+}
+function idleBtn(b) { setBtn(b, null, b.el.hasAttribute("data-novehicle") ? "NO VEHICLE" : b.hint); }
+
+function holdBegin(b) {
+  if (b.holdStart || b.busy || b.el.disabled) return;
+  if (performance.now() - b.lastPress < CLICK_GUARD_MS) return;
+  b.holdStart = performance.now(); b.holdOut = false;
+  setBtn(b, "holding", "HOLD 0.0s");
+  b.holdTick = setInterval(() => {
+    if (performance.now() - b.holdStart >= HOLD_MAX) { holdEnd(b, !b.holdOut); return; }   // auto-release at the cap
+    holdText(b);
+  }, 100);
+}
+function holdText(b) {
+  const ms = Math.min(performance.now() - b.holdStart, HOLD_MAX);
+  T(b.s, b.holdOut ? "RELEASE TO CANCEL" : "HOLD " + (ms / 1000).toFixed(1) + "s / 5s");
+}
+function holdEnd(b, send) {
+  if (!b.holdStart) return;
+  const dur = performance.now() - b.holdStart;
+  b.holdStart = 0; b.holdOut = false; clearInterval(b.holdTick); A(b.el, "data-cancel", null);
+  if (!send) { idleBtn(b); announce(actionLabel(b.a.action_name) + ": hold cancelled"); return; }
+  press(b, dur < TAP_MS ? null : Math.round(clamp(dur, HOLD_MIN, HOLD_MAX)));
+}
+
+function arm(b) {
+  disarm();
+  CTL.armed = b; b.armUntil = performance.now() + ARM_MS;
+  b.armReleased = !b.keyDown;   // armed by a key still held down: confirm only after it is released
+  const tick = () => {
+    const left = Math.ceil((b.armUntil - performance.now()) / 1000);
+    if (left <= 0) { disarm(); return; }
+    setBtn(b, "armed", "CONFIRM? " + left + "s");
+  };
+  tick(); b.armTick = setInterval(tick, 200);
+  addLog(Date.now(), "warning", "Armed " + b.a.action_name + " (click again within 3 s to send)");
+  announce(actionLabel(b.a.action_name) + " armed. Press again within 3 seconds to send, Escape to cancel.");
+}
+function disarm() {
+  const b = CTL.armed; if (!b) return;
+  CTL.armed = null; clearInterval(b.armTick);
+  if (!b.busy) idleBtn(b);
+}
+document.addEventListener("keydown", ev => {
+  if (ev.key !== "Escape") return;
+  let busy = false;
+  if (CTL.armed) { disarm(); announce("Disarmed"); busy = true; }
+  for (const k in CTL.btns) if (CTL.btns[k].holdStart) { holdEnd(CTL.btns[k], false); busy = true; }
+  if (!busy) ackAllToasts();   // Escape with nothing armed clears the alert toasts
+});
+// timers are throttled in background tabs, so never leave a danger button armed while unattended
+document.addEventListener("visibilitychange", () => { if (document.hidden) disarm(); });
+window.addEventListener("blur", () => disarm());
+
+function press(b, holdMs) {
+  const now = performance.now();
+  if (b.busy || b.el.disabled || now - b.lastPress < CLICK_GUARD_MS) { if (!b.busy && b.holdable) idleBtn(b); return; }
+  b.lastPress = now;
+  if (b.danger) {
+    if (CTL.armed !== b || now > b.armUntil) { arm(b); return; }   // expired arm (stalled timer) re-arms, never sends
+    if (!b.armReleased) return;   // same physical key press that armed it
+    disarm();
+    sendTrigger(b, { action_name: b.a.action_name, confirm: true });
+    return;
+  }
+  const body = { action_name: b.a.action_name };
+  if (holdMs != null) body.hold_ms = holdMs;
+  sendTrigger(b, body);
+}
+
+function sendTrigger(b, body) {
+  b.busy = true; clearTimeout(b.flashT);
+  setBtn(b, "busy", "SENDING…");
+  const ctl = new AbortController(), kill = setTimeout(() => ctl.abort(), 8000);
+  const label = body.action_name + (body.hold_ms ? " (hold " + body.hold_ms + " ms)" : "");
+  fetch("/api/trigger", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: ctl.signal, cache: "no-store" })
+    .then(r => r.json().catch(() => ({})).then(j => ({ http: r.status, j })))
+    .then(({ http, j }) => {
+      const st = typeof j?.status === "string" && j.status ? j.status : "HTTP " + http;
+      return { st, msg: typeof j?.message === "string" ? j.message : "" };
+    })
+    .catch(err => ({ st: "BRIDGE_ERROR", msg: err.name === "AbortError" ? "request timed out" : err.message }))
+    .then(({ st, msg }) => {
+      clearTimeout(kill);
+      b.busy = false;
+      let tone = statusTone(st), text = shortStatus(st);
+      // known remote-trigger breakage (doors): FAILED = unsupported here, the button stays N/A for this ship
+      const grp = AS.index?.byAction?.[b.a.action_name]?.group, cls = snap?.frame?.vehicle?.state?.class_name;
+      if (/(^|_)FAILED$/.test(st) && grp?.known_issue) {
+        tone = "warn"; text = "UNSUPPORTED";
+        AS.unsupported.add(grp.id + "|" + (typeof cls === "string" ? cls : ""));
+      }
+      const sev = tone === "ok" ? "nominal" : tone === "warn" ? "warning" : "critical";
+      setBtn(b, tone, text);
+      A(b.el, "title", b.a.action_name + ": " + text + (text !== shortStatus(st) ? " (" + shortStatus(st) + ")" : "") + (msg ? " — " + msg : "") +
+        (text === "UNSUPPORTED" ? "\nKnown issue: " + grp.known_issue : ""));
+      addLog(Date.now(), sev, "Sent " + label + " → " + text + (msg && tone !== "ok" ? " (" + msg + ")" : ""));
+      announce(actionLabel(b.a.action_name) + ": " + text.toLowerCase());
+      b.flashT = setTimeout(() => { if (!b.busy && CTL.armed !== b) { idleBtn(b); CTL.noVeh = undefined; scheduleRender(); } }, FLASH_MS);
+    });
+}
+
+function ctlReason(f) {
+  if (connState === "offline") return ["critical", "Bridge offline — reconnecting…"];
+  if (!snap) return ["warning", "Connecting to bridge…"];
+  const ss = String(snap.status || "");
+  if (!ss.startsWith("streaming") || snap.stale === true) return ["warning", "Waiting for game" + (ss && !ss.startsWith("streaming") ? " (" + ss + ")" : " (no fresh frames)")];
+  if (!CTL.loaded) return ["muted", "Loading actions…"];
+  if (!CTL.actions.length) {
+    if (CTL.error) return ["critical", "Actions unavailable: " + CTL.error + ". Retrying every 10 s."];
+    return f?.actor
+      ? ["warning", "Triggers disabled: set server.game.telemetry.trigger.actions.enabled = 1 in USER.cfg (or the world is still loading). Retrying every 10 s."]
+      : ["warning", "Load into the world — the game only lists actions once you've spawned. Retrying every 10 s."];
+  }
+  return null;
+}
+
+function renderControls(f) {
+  const src = $("ctlSource");
+  H(src, !CTL.source);
+  if (CTL.source === "fake") { badge(src, "FAKE", "warning"); A(src, "title", "Mock/replay mode: triggers hit a fake backend, nothing reaches the game"); }
+  else if (CTL.source) { badge(src, "GAME", "info"); A(src, "title", "Triggers go to the running game"); }
+  badge($("ctlCount"), CTL.loaded ? CTL.actions.length + " ACTIONS" : "— ACTIONS", CTL.actions.length ? "info" : "muted");
+  const r = ctlReason(f), rk = r ? r.join("|") : "";
+  if (rk !== CTL.reason) {
+    CTL.reason = rk;
+    const note = $("ctlNote");
+    H(note, !r && !CTL.error);
+    if (r) { T(note, r[1]); A(note, "data-tone", r[0] === "muted" ? null : r[0]); }
+    else if (CTL.error) { T(note, "Showing cached list (" + CTL.error + ")"); A(note, "data-tone", "warning"); }
+    for (const k in CTL.btns) { const b = CTL.btns[k]; b.el.disabled = !!r; if (r) { holdEnd(b, false); if (CTL.armed === b) disarm(); } }
+  }
+  const noVeh = !f?.vehicle?.state;
+  if (noVeh !== CTL.noVeh) {
+    CTL.noVeh = noVeh;
+    for (const k in CTL.btns) {
+      const b = CTL.btns[k], grey = noVeh && b.vehicle;
+      A(b.el, "data-novehicle", grey ? "" : null);
+      A(b.el, "title", b.a.action_name + (grey ? " — No vehicle — action may return MAP_INACTIVE" : ""));
+      if (!b.busy && !b.holdStart && CTL.armed !== b && !b.el.hasAttribute("data-state")) idleBtn(b);
+    }
+  }
+  renderActionStates(f, noVeh);
+}
+// live state on each mapped button; cached writes only, buttons are never rebuilt here
+function renderActionStates(f, noVeh) {
+  const ctx = { index: AS.index, frame: f, stale: connState === "offline" || !snap || snap.stale === true,
+    caps: snap?.capabilities || null, unsupported: AS.unsupported };
+  for (const k in CTL.btns) {
+    const b = CTL.btns[k], view = StateLogic.buttonView(k, ctx);
+    if (!view.mapped) { H(b.v, true); A(b.el, "data-sv", null); A(b.el, "aria-describedby", null); b.notes = ""; continue; }
+    H(b.v, false); T(b.vt, view.text || "·"); H(b.vq, !view.unverified); A(b.el, "data-sv", view.tone);
+    b.notes = view.notes.join("\n");
+    if (b.nd.textContent !== b.notes) b.nd.textContent = b.notes;
+    A(b.el, "aria-describedby", b.notes ? b.nd.id : null);
+    A(b.el, "aria-label", b.aria + (view.text ? ", state " + view.text : "") + (view.unverified ? ", mapping unverified" : ""));
+    if (b.el.hasAttribute("data-state")) continue;   // press feedback owns the tooltip while it shows
+    const grey = noVeh && b.vehicle;
+    A(b.el, "title", b.a.action_name + (grey ? " — No vehicle — action may return MAP_INACTIVE" : "") +
+      (view.text ? "\nState: " + view.text : "") + (view.notes.length ? "\n" + view.notes.join("\n") : ""));
+  }
+  renderCtlInfo();
+}
+// visible notes line for the focused / last-tapped button (touch has no tooltips); not live, so no chatter
+function renderCtlInfo() {
+  const b = CTL.infoFor && CTL.btns[CTL.infoFor], info = $("ctlInfo");
+  H(info, !b || !b.notes);
+  if (b && b.notes) { T($("ctlInfoL"), actionLabel(b.a.action_name)); T($("ctlInfoT"), b.notes); }
+}
+function setCtlInfo(el) {
+  const name = el?.closest?.(".ctl-btn")?.dataset?.action || null;
+  if (name !== CTL.infoFor) { CTL.infoFor = name; renderCtlInfo(); }
+}
+$("ctlGroups").addEventListener("focusin", ev => setCtlInfo(ev.target));
+$("ctlGroups").addEventListener("pointerdown", ev => setCtlInfo(ev.target), { passive: true });
+$("ctlGroups").addEventListener("focusout", ev => { if (!$("ctlGroups").contains(ev.relatedTarget)) setCtlInfo(null); });
+document.addEventListener("pointerdown", ev => { if (!$("ctlPanel").contains(ev.target)) setCtlInfo(null); }, { passive: true });
+// Refresh also forgets this session's "UNSUPPORTED" verdicts (a transient FAILED, e.g. ship powered off)
+$("ctlRefresh").addEventListener("click", () => { CTL.sig = ""; AS.unsupported.clear(); loadActions(); scheduleRender(); });
+
+// ---- state + render ------------------------------------------------------------
+let snap = null, connState = "connecting", rafPending = false, quantumSeen = false, lastBpm = 0, lastRaw = 0;
+let lastLocalSample = 0, histState = "pending";
+function scheduleRender() { if (!rafPending) { rafPending = true; requestAnimationFrame(render); } }
+
+function renderHeader() {
+  const s = snap, st = $("status");
+  let tone = "warning", text = "CONNECTING", live = false;
+  if (connState === "offline") { tone = "critical"; text = "OFFLINE · RECONNECTING"; }
+  else if (s) {
+    const ss = String(s.status || "");
+    if (ss.startsWith("streaming")) {
+      if (isNum(s.age_s) && s.age_s > 3) { tone = "warning"; text = "STALE " + s.age_s.toFixed(0) + "s"; }
+      else { tone = "nominal"; text = "STREAMING"; live = true; }
+    } else if (/disconnect|error|ended/i.test(ss)) { tone = "critical"; text = ss.toUpperCase(); }
+    else { tone = "warning"; text = ss.toUpperCase() || "WAITING"; }
+  }
+  A(st, "data-tone", tone); A(st, "data-live", live ? "" : null); T($("statusText"), text);
+  T($("source"), s?.source, s?.source || "");
+  T($("hz"), isNum(s?.hz) ? s.hz.toFixed(1) + " Hz" : null);
+  T($("frames"), isNum(s?.frames_total) ? s.frames_total.toLocaleString("en-US") : null);
+  T($("age"), isNum(s?.age_s) ? s.age_s.toFixed(1) + " s" : null);
+  T($("hist"), histState);
+  const ss = s?.session;
+  A($("metaSess"), "data-idle", ss && sessionIdle(ss) ? "" : null);
+  T($("hShard"), ss?.shard_short, ss?.shard || "");
+  T($("hRegion"), ss?.region_name);
+  T($("hSystem"), ss?.system);
+  renderZoneBadge(s?.signals || null, !!(ss && sessionIdle(ss)));
+}
+
+// ---- signals (Game.log): zone badge + nearby ships ------------------------------------
+function fmtAgo(sec) {
+  if (!isNum(sec)) return null;
+  sec = Math.max(0, Math.round(sec));
+  if (sec < 10) return "now";
+  if (sec < 60) return sec + "s";
+  if (sec < 3600) return Math.floor(sec / 60) + "m";
+  return Math.floor(sec / 3600) + "h " + Math.floor(sec / 60) % 60 + "m";
+}
+// idle (sessionIdle): Game.log not written + no telemetry: zone/nearby are history, so mute them
+function renderZoneBadge(sig, idle) {
+  const b = $("zoneBadge"), z = sig?.zone;
+  if (!sig || (!z && !sig.armistice && !sig.jurisdiction)) { H(b, true); return; }
+  let text, tone;
+  const kind = z?.kind, jur = sig.jurisdiction;
+  if (sig.armistice) { text = "ARMISTICE"; tone = "nominal"; }
+  else if (kind === "monitored") { text = "MONITORED"; tone = "info"; }
+  else if (kind === "ungoverned") { text = "UNGOVERNED"; tone = "warning"; }
+  else if (kind === "jurisdiction") { text = jur || z.text; tone = "info"; }
+  else if (jur) { text = jur.toLowerCase() === "ungoverned" ? "UNGOVERNED" : jur; tone = jur.toLowerCase() === "ungoverned" ? "warning" : "info"; }
+  else { text = z?.text || "—"; tone = "muted"; }
+  H(b, false); A(b, "data-tone", idle ? "muted" : tone); T($("zoneText"), text);
+  const since = isNum(z?.since) ? " · since " + hhmmss(z.since * 1000) : "";
+  A(b, "title", (z?.text || text) + since + (jur ? " · jurisdiction: " + jur : "") + " (Game.log HUD notice)" +
+    (idle ? " · Game.log idle: last known, not live" : ""));
+}
+const COUNT_TIP = "Distinct ship instances (entity ids) seen this session — not people; reclaimed/respawned ships may count twice; includes parked/AI ships";
+// "Drake · Light Freight / Medium Fighter · S3 · crew 3 · 46 SCU" from the local game dataset (no network)
+function shipInfoLine(i) {
+  if (!i) return null;
+  const parts = [i.manufacturer, i.role || i.career, isNum(i.size) ? "S" + i.size : null,
+    isNum(i.crew) ? "crew " + i.crew : null, isNum(i.cargo_scu) ? fmtScu(i.cargo_scu) + " SCU" : null].filter(Boolean);
+  return parts.length ? parts.join(" · ") : null;
+}
+function fmtScu(v) { return Number.isInteger(v) ? String(v) : v.toFixed(1); }
+function shipInfoTip(i) {
+  if (!i) return "";
+  return [i.manufacturer && "Manufacturer: " + i.manufacturer, i.career && "Career: " + i.career, i.role && "Role: " + i.role,
+    isNum(i.size) && "Size: " + i.size + " (game-data vehicle size, 1 = smallest … 6 = capital)",
+    isNum(i.crew) && "Crew: " + i.crew + " (max crew seats)", isNum(i.cargo_scu) ? "Cargo: " + fmtScu(i.cargo_scu) + " SCU" : "Cargo: none listed",
+    "From local game data (sc-gamedata), no network"].filter(Boolean).join("\n");
+}
+function renderNearby(sig, idle) {
+  H($("nbOff"), !!sig); H($("nbBody"), !sig);
+  A($("nbBody"), "data-idle", sig && idle ? "" : null);
+  if (!sig) { badge($("nbCount"), "OFF", "muted"); A($("nbCount"), "title", null); return; }
+  const list = arr(sig.nearby), own = sig.own_ship, n = isNum(sig.nearby_count) ? sig.nearby_count : 0;
+  badge($("nbCount"), n + (n === 1 ? " SHIP" : " SHIPS"), n && !idle ? "info" : "muted");
+  A($("nbCount"), "title", idle ? "Game.log idle: last known ships, not live" : null);
+  H($("nbEmpty"), list.length > 0);
+  const box = $("nbList"), key = (own ? "own:" + own.class + (own.info ? "+" : "") : "") + "|" + list.map(x => x?.class + ":" + x?.count + ":" + (x?.info ? 1 : 0)).join("|");
+  if (box._sig !== key) {
+    box._sig = key; box.textContent = ""; box._rows = [];
+    if (own) {
+      const li = mk("li", "own"), nm = mk("span", "n-name", own.display || own.class);
+      const you = mk("span", "badge", "YOU"); you.dataset.tone = "nominal"; nm.append(you);
+      nm.title = (own.display || own.class) + " (your ship, from " + (own.source === "telemetry" ? "telemetry" : "Game.log") + ")";
+      const om = mk("span", "n-main"), osub = shipInfoLine(own.info);
+      om.append(nm);
+      if (osub) { const s2 = mk("span", "n-sub", osub); s2.title = shipInfoTip(own.info); om.append(s2); }
+      li.append(om, mk("span", "n-cnt", ""), mk("span", "n-ago", ""));
+      box.append(li);
+    }
+    for (const x of list) {
+      if (!x || typeof x !== "object") continue;
+      const info = x.info && typeof x.info === "object" ? x.info : null, sub = shipInfoLine(info);
+      const li = mk("li"), main = mk("span", "n-main"), nm = mk("span", "n-name", info?.display_name || x.display || x.class || "?");
+      const cnt = mk("span", "n-cnt", "×" + (isNum(x.count) ? x.count : "?")), ago = mk("span", "n-ago", "—");
+      nm.title = (info?.display_name || x.display || x.class || "") + (x.class ? " (" + x.class + ")" : "");
+      cnt.title = COUNT_TIP;
+      main.append(nm);
+      if (sub) { const s2 = mk("span", "n-sub", sub); s2.title = shipInfoTip(info); main.append(s2); }
+      li.append(main, cnt, ago); box.append(li); box._rows.push({ ago, cls: x.class });
+    }
+  }
+  const now = Date.now() / 1000, byCls = {};
+  for (const x of list) if (x && typeof x === "object") byCls[x.class] = x;
+  for (const r of box._rows) {
+    const x = byCls[r.cls];
+    if (x && isNum(x.last_seen)) {
+      T(r.ago, fmtAgo(now - x.last_seen), "Last seen " + hhmmss(x.last_seen * 1000) + (isNum(x.first_seen) ? ", first " + hhmmss(x.first_seen * 1000) : ""));
+    } else T(r.ago, null);
+  }
+}
+
+// ---- people (Game.log handles; names only with "Show names", orgs only with "Look up orgs") ----------
+const REL_TONE = { crew: "nominal", party: "info", party_likely: "info", nearby: "warning" };
+const REL_TIP = {
+  crew: "Crew: in a voice channel of a ship you are on (strongest 'physically with you' signal)",
+  party: "Party: named by a party toast, party launch or 'started to QT to your location'",
+  party_likely: "Party or nearby: started/completed a quantum calibration near you (usually a party member)",
+  nearby: "Nearby: killer or victim of a ship destroyed in your streaming bubble",
+};
+const SRC_LABEL = { vehicle_destroyed: "ship destroyed", qt_calibration: "QT calibration", party_toast: "party toast",
+  party_launch: "party launch", voice_channel: "voice channel", qt_incoming: "QT to you" };
+let pplBusy = false, pplFlash = null;   // flash: {text, tone, until} shown over the status note
+const flashPeople = (text, tone) => { pplFlash = { text, tone: tone || null, until: Date.now() + 6000 }; scheduleRender(); };
+function orgBadge(o) {
+  if (!o || typeof o !== "object") return null;
+  const st = o.status;
+  if (st === "pending" || st === "fetching") return ["…", "muted", st === "fetching" ? "Looking up on RSI…" : "Queued for RSI lookup"];
+  if (st === "error") return ["?", "muted", "Lookup failed; retried later"];
+  if (st === "not_found") return ["NO CITIZEN", "warning", "RSI has no citizen with this handle (cached 1 day)"];
+  if (st !== "ok") return null;
+  const g = o.org;
+  if (!g) return ["NO ORG", "muted", "No main org in public records"];
+  if (g.visibility === "redacted" || g.visibility === "hidden") return ["REDACTED", "muted", "Main org is " + g.visibility];
+  return [g.sid || g.name || "ORG", "info", [g.name, g.sid && "SID " + g.sid, g.rank && "Rank: " + g.rank].filter(Boolean).join(" · ")];
+}
+function orgLine(o) {
+  if (!o || o.status !== "ok") return null;
+  const g = o.org, parts = [];
+  if (g && g.name) parts.push(g.name + (g.rank ? " (" + g.rank + ")" : ""));
+  if (isNum(o.affiliations)) parts.push(o.affiliations + " affiliation" + (o.affiliations === 1 ? "" : "s"));
+  if (o.enlisted) parts.push("enlisted " + o.enlisted);
+  return parts.join(" · ") || null;
+}
+function personRow(p, self) {
+  const li = mk("li", self ? "self" : null), main = mk("span", "p-main");
+  const nm = p.url ? mk("a", "p-name", p.name) : mk("span", "p-name", p.name);
+  if (p.url) { nm.href = p.url; nm.target = "_blank"; nm.rel = "noopener noreferrer"; nm.title = "Open the public RSI citizen page (" + p.name + ")"; }
+  else nm.title = p.name + " (not a valid RSI handle: no link / lookup)";
+  main.append(nm);
+  const rb = mk("span", "badge", self ? "YOU" : (p.label || p.relation || "").toUpperCase());
+  rb.dataset.tone = self ? "nominal" : REL_TONE[p.relation] || "muted";
+  rb.title = self ? "Your own handle (local login)" : REL_TIP[p.relation] || "";
+  main.append(rb);
+  if (p.leader) { const b = mk("span", "badge", "LEADER"); b.dataset.tone = "muted"; b.title = "Party leader (last seen)"; main.append(b); }
+  if (p.left) { const b = mk("span", "badge", "LEFT"); b.dataset.tone = "muted"; b.title = "Left the party / channel"; main.append(b); li.dataset.left = ""; }
+  const ob = orgBadge(p.org), org = mk("span");
+  if (ob) { org.className = "badge"; org.textContent = ob[0]; org.dataset.tone = ob[1]; org.title = ob[2]; }
+  const ago = mk("span", "p-ago", self ? "" : "—");
+  li.append(main, org, ago);
+  const sub = [p.ship && "on " + p.ship, !self && arr(p.sources).map(x => SRC_LABEL[x] || x).join(", "), orgLine(p.org)].filter(Boolean).join(" · ");
+  if (sub) li.append(mk("span", "p-sub", sub));
+  return { li, ago };
+}
+function renderPeople(pp, idle) {
+  H($("pplOff"), !!pp); H($("pplBody"), !pp);
+  A($("pplBody"), "data-idle", pp && idle ? "" : null);
+  if (!pp) { badge($("pplCount"), "OFF", "muted"); return; }
+  const c = pp.counts || {}, total = isNum(c.total) ? c.total : 0;
+  badge($("pplCount"), total + (total === 1 ? " PLAYER" : " PLAYERS"), total && !idle ? "info" : "muted");
+  const nb = $("pplNames"), ob = $("pplOrgs");
+  if (!pplBusy) { nb.checked = !!pp.show_names; ob.checked = !!pp.lookup_orgs; }
+  nb.disabled = ob.disabled = pplBusy;
+  T($("pplCounts"), [["crew", c.crew], ["party", c.party], ["party?", c.party_likely], ["nearby", c.nearby]]
+    .filter(([, n]) => isNum(n) && n > 0).map(([k, n]) => n + " " + k).join(" · ") || "Nobody named in Game.log yet");
+  const lk = pp.lookup || {}, note = $("pplNote");
+  let msg = "", tone = null;
+  if (pp.names_blocked) { msg = "Names are on but hidden for this page's origin (open the dashboard at its own address)."; tone = "warning"; }
+  else if (!pp.show_names) msg = "Names hidden. Turn on Show names to list handles (shown only on this dashboard, never recorded).";
+  if (pp.lookup_orgs) {
+    const st = lk.blocked_for_s > 0 ? "RSI lookups paused " + lk.blocked_for_s + " s (" + (lk.last_status || "blocked") + ")"
+      : "Org lookup on · " + (lk.cache_entries || 0) + " cached · " + (lk.requests || 0) + " requests" + (lk.in_flight ? " · fetching" : "") +
+        (lk.last_status && lk.last_status !== "ok" ? " · last: " + lk.last_status : "");
+    msg = (msg ? msg + " " : "") + (pp.show_names ? st : "Org lookup waits for Show names.");
+    if (lk.blocked_for_s > 0 || (lk.last_status || "").startsWith("error")) tone = "warning";
+  }
+  if (lk.cache_error) { msg += " " + lk.cache_error; tone = "warning"; }
+  if (pplFlash && Date.now() < pplFlash.until) { msg = pplFlash.text; tone = pplFlash.tone; } else pplFlash = null;
+  T(note, msg); A(note, "data-tone", tone); H(note, !msg);
+  const box = $("pplList"), rows = arr(pp.people), me = pp.self;
+  H(box, !pp.people);
+  const key = JSON.stringify([me && [me.name, me.org?.status, me.org?.org?.sid], rows.map(p => [p.name, p.relation, p.left, p.leader, p.ship, p.org?.status, p.org?.org?.sid, p.org?.affiliations])]);
+  if (box._sig !== key) {
+    box._sig = key; box.textContent = ""; box._rows = [];
+    if (me) box.append(personRow(me, true).li);
+    for (const p of rows) { if (!p || typeof p !== "object") continue; const r = personRow(p, false); box.append(r.li); box._rows.push({ ago: r.ago, name: p.name }); }
+  }
+  const now = Date.now() / 1000, by = {};
+  for (const p of rows) if (p && typeof p === "object") by[p.name] = p;
+  for (const r of arr(box._rows)) {
+    const p = by[r.name];
+    if (p && isNum(p.last_seen)) T(r.ago, fmtAgo(now - p.last_seen), "Last seen " + hhmmss(p.last_seen * 1000) + " · " + p.count + " mention" + (p.count === 1 ? "" : "s"));
+    else T(r.ago, null);
+  }
+}
+function putPeople(patch) {
+  pplBusy = true; scheduleRender();
+  fetch("/api/people/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch), cache: "no-store" })
+    .then(r => r.json().then(b => { if (!r.ok) throw new Error(b.message || "HTTP " + r.status); if (snap && b.people) snap.people = b.people; }))
+    .catch(err => { flashPeople("Saving failed: " + err.message, "warning"); console.error(err); })
+    .finally(() => { pplBusy = false; scheduleRender(); });
+}
+$("pplNames").addEventListener("change", e => putPeople({ show_names: e.target.checked }));
+$("pplOrgs").addEventListener("change", e => putPeople({ lookup_orgs: e.target.checked }));
+$("pplClear").addEventListener("click", () => {
+  const b = $("pplClear"); b.disabled = true;
+  fetch("/api/people/cache", { method: "DELETE", cache: "no-store" })
+    .then(r => r.json().then(j => { if (!r.ok) throw new Error(j.message || "HTTP " + r.status); flashPeople("Cleared " + j.removed + " cached lookup" + (j.removed === 1 ? "" : "s") + "."); }))
+    .catch(err => flashPeople("Clear failed: " + err.message, "warning"))
+    .finally(() => { b.disabled = false; });
+});
+
+// ---- session (Game.log) ----------------------------------------------------------
+const isoMs = v => { if (typeof v !== "string") return null; const t = Date.parse(v); return isFinite(t) ? t : null; };
+function fmtDur(ms) {
+  if (!isNum(ms) || ms < 0) return null;
+  const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60;
+  return (h ? h + "h " : "") + String(m).padStart(h ? 2 : 1, "0") + "m " + String(s % 60).padStart(2, "0") + "s";
+}
+// idle = telemetry stale AND Game.log not written for a while: game closed / bridge started after
+// the game: the last launch's session is history, so the timer stops and the panel dims
+const SESSION_IDLE_S = 120;
+const sessionIdle = ss => !!snap?.stale && isNum(ss?.log_age_s) && ss.log_age_s > SESSION_IDLE_S;
+// server address + session ids are never in snapshot/SSE; fetched from the origin-guarded endpoint
+// only while a Reveal is on, re-fetched when the session changes underneath
+const revealed = { sServer: false, sSession: false };
+let priv = null, privKey = null, privCtl = null;
+const sessKey = ss => ss ? [ss.log_started_at, ss.joined_at, ss.shard, ss.has_server_address, ss.has_session_ids].join("|") : "";
+function loadPrivate(key) {
+  if (privCtl) privCtl.abort();
+  const ctl = new AbortController(); privCtl = ctl; privKey = key;
+  fetch("/api/session/private", { signal: ctl.signal, cache: "no-store" })
+    .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(j => { if (privCtl === ctl) { priv = j?.session || null; scheduleRender(); } })
+    .catch(err => { if (err.name !== "AbortError" && privCtl === ctl) { priv = { error: true }; console.error(err); scheduleRender(); } })
+    .finally(() => { if (privCtl === ctl) privCtl = null; });
+}
+for (const id in revealed) $(id).addEventListener("click", () => {
+  revealed[id] = !revealed[id];
+  if (!revealed.sServer && !revealed.sSession) { if (privCtl) privCtl.abort(); priv = null; privKey = null; }
+  scheduleRender();
+});
+function revealBtn(id, has, value, label) {
+  const b = $(id), on = revealed[id] && has;
+  A(b, "aria-pressed", on ? "true" : "false");
+  b.disabled = !has;
+  T(b, !has ? "—" : !on ? "Reveal" : value || (priv?.error ? "unavailable" : "…"), !has ? "" : on ? "Click to hide" : "Click to reveal the " + label);
+}
+function renderSession(ss) {
+  H($("sessEmpty"), !!ss); H($("sessBody"), !ss);
+  if (!ss) { badge($("sessSrc"), "OFF", "muted"); H($("sessChan"), true); return; }
+  const found = ss.source === "mock" || ss.log_found, idle = sessionIdle(ss);
+  A($("sessBody"), "data-idle", idle ? "" : null);
+  badge($("sessSrc"), ss.source === "mock" ? "MOCK" : !found ? "LOG NOT FOUND" : idle ? "IDLE" : "GAME.LOG",
+    ss.source === "mock" ? "info" : !found ? "warning" : idle ? "muted" : "nominal");
+  if (ss.channel) { badge($("sessChan"), ss.channel, "info"); H($("sessChan"), false); } else H($("sessChan"), true);
+  T($("sessSystem"), ss.system);
+  T($("sessShardSub"), ss.shard_short ? ss.shard_short + (ss.region_name ? " · " + ss.region_name : "") : "not joined");
+  T($("sShard"), ss.shard, ss.shard || "");
+  T($("sRegion"), ss.region_name ? ss.region_name + (ss.region_code ? " (" + ss.region_code + ")" : "") : ss.region_code);
+  const j = isoMs(ss.joined_at);
+  T($("sJoined"), j == null ? null : new Date(j).toLocaleString("en-GB", { hour12: false }));
+  // idle: freeze at the last Game.log write instead of ticking on
+  T($("sDur"), j == null ? null : idle ? fmtDur(Date.now() - ss.log_age_s * 1000 - j) : fmtDur(Date.now() - j),
+    idle ? "Game.log idle for " + fmtDur(ss.log_age_s * 1000) + " and no telemetry: session not live" : "");
+  T($("sBuild"), ss.build);
+  T($("sLoc"), ss.location_id);
+  const key = sessKey(ss), want = (revealed.sServer && ss.has_server_address) || (revealed.sSession && ss.has_session_ids);
+  if (want && key !== privKey) { priv = null; loadPrivate(key); }
+  const p = privKey === key ? priv : null;
+  revealBtn("sServer", !!ss.has_server_address, p?.server_address ? p.server_address + (isNum(p.server_port) ? ":" + p.server_port : "") : null, "server address");
+  revealBtn("sSession", !!ss.has_session_ids, [p?.session_id, p?.env_session].filter(Boolean).join("\n") || null, "session ids");
+  const ls = isoMs(ss.log_started_at);
+  T($("sLogStart"), ls == null ? ss.log_started_at : new Date(ls).toLocaleString("en-GB", { hour12: false }));
+}
+
+function tileVal(id, v, sub) { const t = $(id); T(t.querySelector(".v"), v); if (sub !== undefined) T(t.querySelector(".tile-sub"), sub, sub == null || sub === "—" ? "" : String(sub)); return t; }
+
+function renderHero(f) {
+  const vs = f?.vehicle?.state, ins = vs?.flight?.instruments, vit = f?.actor?.vitals;
+  const sp = num(ins?.speed);
+  tileVal("t-speed", sp == null ? null : sp < 10 ? sp.toFixed(1) : Math.round(sp), sp == null ? "—" : (sp * 3.6).toFixed(0) + " km/h");
+  const g = num(ins?.g_meter?.current), gp = num(ins?.g_meter?.max);
+  const gt = tileVal("t-g", fx(g, 1), gp == null ? "—" : "peak " + gp.toFixed(1) + " G");
+  const gb = gt.querySelector(".badge");
+  if (g != null && g >= 7) { badge(gb, g >= 9 ? "HIGH G" : "G WARN", g >= 9 ? "critical" : "warning"); H(gb, false); } else H(gb, true);
+
+  const h = num(ins?.heading);
+  tileVal("t-hdg", h == null ? null : String(Math.round(h) % 360).padStart(3, "0"), h == null ? "—" : cardinal(h));
+  if (h != null) {
+    A(tapeG, "transform", "translate(" + (-h * PX_PER_DEG).toFixed(1) + ",0)");
+    A($("glyphNeedle"), "transform", "rotate(" + h.toFixed(1) + ")");
+  }
+
+  const b = ins?.boost, br = pct01(b?.reserves);
+  const bt = tileVal("t-boost", br, b ? "output " + (pct01(b.output) ?? "—") + "%" : "—");
+  const bb = bt.querySelector(".badge");
+  if (b?.critical) { badge(bb, "CRITICAL", "critical"); H(bb, false); }
+  else if (b?.engaged) { badge(bb, "ENGAGED", "info"); H(bb, false); }
+  else H(bb, true);
+
+  const sl = pct01(vs?.shields?.level), pw = vs?.power;
+  const faces = arr(vs?.shields?.faces).map(num).filter(v => v != null);
+  const sht = tileVal("t-shield", sl, faces.length ? "weakest face " + Math.round(Math.min(...faces) * 100) + "%" : "—");
+  const sb = sht.querySelector(".badge");
+  if (pw && (pw.shield_generators === false || pw.shield_emitters === false)) { badge(sb, "OFFLINE", "muted"); H(sb, false); }
+  else if (sl != null && sl < 25) { badge(sb, "LOW", "critical"); H(sb, false); }
+  else H(sb, true);
+
+  const hr = num(vit?.heart_rate);
+  tileVal("t-hr", hr == null ? null : Math.round(hr), isNum(vit?.gravity) ? "gravity " + vit.gravity.toFixed(2) + " g" : "—");
+  const heart = $("heart");
+  if (hr != null && hr > 20) {
+    const r = Math.round(hr);
+    if (r !== lastBpm) { lastBpm = r; S(heart, "--beat", (60 / r).toFixed(3) + "s"); }
+    A(heart, "class", "heart on");
+  } else A(heart, "class", "heart");
+}
+
+function renderPilot(f) {
+  const a = f?.actor, v = a?.vitals, env = a?.environment, st = a?.state;
+  H($("pilotEmpty"), !!a);
+  for (const k of ["health", "hunger", "thirst", "oxygen"]) setMeter(VM[k], gaugePct(v?.[k]));
+  const bt = num(v?.body_temperature?.current);
+  T($("btemp"), bt == null ? null : bt.toFixed(1) + " °C");
+  const et = num(env?.external_temperature);
+  T($("extemp"), et == null ? null : et.toFixed(1) + " °C");
+  const rad = num(env?.ambient_radiation_rate), rEl = $("rad");
+  T(rEl, rad == null ? null : rad > 0 ? "☢ " + rad.toFixed(2) : "0.00");
+  A(rEl, "class", rad > 0 ? "warn" : null);
+  const atm = env?.breathable_atmosphere;
+  if (atm === true) badge($("atmo"), "BREATHABLE", "nominal");
+  else if (atm === false) badge($("atmo"), "NO ATMO", "warning");
+  else badge($("atmo"), "—", "muted");
+  T($("press"), fx(num(v?.pressure), 2));
+  T($("grav"), isNum(v?.gravity) ? v.gravity.toFixed(2) + " g" : null);
+  T($("intox"), isNum(v?.intoxication_level) ? String(v.intoxication_level) : null);
+  const seat = cleanName(st?.seat_name);
+  T($("seat"), seat, noId(st?.seat_name));
+  const u = fmtUec(st?.uec_balance);
+  T($("uec"), u, u || "");
+  const loco = short(st?.locomotion), role = short(st?.crew_role);
+  badge($("loco"), loco || "—", loco ? "info" : "muted");
+  badge($("role"), role && role !== "UNSPECIFIED" ? role : "NO ROLE", role && role !== "UNSPECIFIED" ? "info" : "muted");
+}
+
+function renderShip(f) {
+  const vs = f?.vehicle?.state, fl = vs?.flight, ins = fl?.instruments, fs = fl?.state;
+  H($("shipEmpty"), !!vs);
+  const name = cleanName(vs?.name), cls = cleanName(vs?.class_name), mfr = (vs?.manufacturer || "").trim();
+  T($("shipName"), name || cls, noId(vs?.name));
+  T($("shipSub"), [cls && cls !== name ? cls : null, mfr || null].filter(Boolean).join(" · ") || short(vs?.type));
+  const mode = short(vs?.master_mode?.mode);
+  badge($("mm"), mode ? (mode === "NAVIGATION" ? "NAV" : mode) : "—", mode === "NAVIGATION" ? "info" : mode === "SCM" ? "warning" : "muted");
+  const sp = vs?.master_mode?.spooled, spEl = $("spool");
+  H(spEl, typeof sp !== "boolean");
+  if (typeof sp === "boolean") badge(spEl, sp ? "SPOOLED" : "SPOOLING", sp ? "nominal" : "warning");
+  const landed = fs?.is_landed;
+  badge($("landed"), landed === true ? "LANDED" : landed === false ? "AIRBORNE" : "—", landed === true ? "nominal" : landed === false ? "info" : "muted");
+  const depl = (el, lbl, s) => {
+    H(el, !s);
+    if (s) badge(el, lbl + " " + s, /ING$/.test(s) ? "warning" : s === "DEPLOYED" ? "info" : "muted");
+  };
+  depl($("gear"), "GEAR", short(fs?.gear));
+  depl($("vtol"), "VTOL", short(fs?.vtol));
+  const li = vs?.lights_enabled;
+  badge($("lights"), li === true ? "LIGHTS ON" : li === false ? "LIGHTS OFF" : "LIGHTS —", li ? "info" : "muted");
+
+  renderCaps(vs, snap?.capabilities || null);
+  setMeter(SM.hull, isNum(vs?.health) ? vs.health * 100 : null);
+  setMeter(SM.hydrogen, isNum(ins?.hydrogen_fuel) ? ins.hydrogen_fuel * 100 : null);
+  const q = num(ins?.quantum_fuel);
+  if (q != null && q > 0) quantumSeen = true;
+  if (q == null || !quantumSeen) { setMeter(SM.quantum, null, q === 0 ? "—" : null); A(SM.quantum.row, "title", q === 0 ? "Game reports 0 and it has never changed: likely not reported" : null); }
+  else { setMeter(SM.quantum, q * 100); A(SM.quantum.row, "title", null); }
+
+  const alt = ins?.altitude, ralt = ins?.radar_altitude;
+  const altEl = $("alt");
+  if (ins && typeof alt === "number" && !isNum(alt)) T(altEl, "DEEP SPACE", "No planetary reference (game sends FLT_MAX)");
+  else T(altEl, fmtDist(num(alt)), "");
+  const raEl = $("ralt");
+  if (ins && typeof ralt === "number" && !isNum(ralt)) T(raEl, "— (no ground)", "No ground return");
+  else T(raEl, fmtDist(num(ralt)), "");
+  const vsi = num(ins?.vertical_speed_indicator);
+  T($("vsi"), vsi == null ? null : Math.abs(vsi) < 0.05 ? "0.0 m/s" : (vsi > 0 ? "▲ " : "▼ ") + Math.abs(vsi).toFixed(1) + " m/s");
+  const ad = num(ins?.atmospheric_density);
+  T($("adens"), ad == null ? null : (ad === 0 ? "0" : ad < 0.01 ? ad.toExponential(2) : ad.toFixed(3)) + " kg/m³");
+  const doors = vs?.doors;
+  H($("doorsL"), !doors); H($("doors"), !doors);
+  if (doors) T($("doors"), [short(doors.open_state), short(doors.lock_state)].filter(x => x && x !== "UNSPECIFIED").join(" · ") || null);
+  T($("vtype"), short(vs?.type));
+}
+
+// game-data capabilities (sc-gamedata via the bridge); text always present, never colour-only
+const CAP_UI = { mining: "⛏ Mining", salvage: "♻ Salvage", refuel: "⛽ Refuel", tractor: "🧲 Tractor", guns: "⊕ Guns", scan: "◎ Scan",
+  quantum: "QT", qed: "QED", emp: "EMP", missiles: "Missiles", cargo: "Cargo" };
+function renderCaps(vs, cap) {
+  const box = $("shipCaps"), src = $("capSrc");
+  if (!vs) { syncChips(box, [], String); T(src, null, ""); return; }
+  if (!cap || !cap.caps) {
+    const m = syncChips(box, ["unknown"], () => "Caps");
+    chip(m.unknown, "none", "?", "Class " + (vs.class_name || "?") + " not in game data (or no dataset loaded): operator modes are not gated");
+    T(src, "no game data", ""); return;
+  }
+  const keys = Object.keys(CAP_UI).filter(k => k in cap.caps), m = syncChips(box, keys, k => CAP_UI[k]);
+  for (const k of keys) {
+    const yes = cap.caps[k] === true, scu = cap.caps.cargo_scu;
+    // cargo=false only means "not in the dataset" (no grids/SCU listed), not "carries none"
+    if (k === "cargo" && !yes) { chip(m[k], "none", "?", "Cargo: not listed in game data (the ship may still carry cargo)"); continue; }
+    chip(m[k], yes ? "on" : "off", k === "cargo" && isNum(scu) && scu > 0 ? Math.round(scu) + " SCU" : yes ? "YES" : "NO",
+      CAP_UI[k] + (yes ? ": yes" : ": no") + " (game data, default loadout)");
+  }
+  T(src, "game data " + (cap.source_build || "?") + (cap.role ? " · " + cap.role : ""), (cap.source || "") + (cap.display_name ? " · " + cap.display_name : ""));
+}
+
+function renderShields(f) {
+  const vs = f?.vehicle?.state, sh = vs?.shields, pw = vs?.power;
+  setMeter(SHM, isNum(sh?.level) ? sh.level * 100 : null);
+  const faces = arr(sh?.faces), fv = syncFaces(faces.length, vs?.class_name), fst = StateLogic.faceStates(faces, sh?.level);
+  fst.forEach((st, i) => {
+    const seg = fv.face[i], row = fv.row[i], lbl = fv.L.labels[i];
+    if (seg) { A(seg, "data-sev", st.sev); A(seg, "stroke-opacity", st.v == null ? "1" : (0.3 + 0.7 * clamp(st.v, 0, 1)).toFixed(2)); }
+    if (row) { T(row.val, st.text); A(row.el, "data-sev", st.sev); A(row.el, "aria-label", "Face " + lbl + ": " + (st.v == null ? "no data" : st.text)); }
+  });
+  if (fv.c2) T(fv.c2, isNum(sh?.level) ? Math.round(clamp(sh.level, 0, 1) * 100) + "%" : null);
+  const pb = (el, lbl, v) => badge(el, lbl + (v === true ? " ON" : v === false ? " OFF" : " —"), v === true ? "nominal" : v === false ? "warning" : "muted");
+  pb($("shGen"), "GEN", pw?.shield_generators); pb($("shEmit"), "EMIT", pw?.shield_emitters);
+  const an = vs?.annunciators || {};
+  for (const k of ANN) {
+    const raw = short(an[k]), a = AT[k];
+    const s = !raw ? null : raw.startsWith("MAJOR") ? "major" : raw.startsWith("MINOR") ? "minor" : raw === "NOMINAL" ? "nominal" : "off";
+    A(a.el, "data-s", s); A(a.el, "data-flash", raw && raw.endsWith("FLASHING") ? "" : null);
+    T(a.st, !raw ? "—" : s === "nominal" ? "NOM" : s === "off" ? "OFF" : s.toUpperCase());
+    A(a.el, "aria-label", ANN_L[k] + ": " + (raw || "not reported"));
+  }
+}
+
+function renderSystems(f) {
+  const vs = f?.vehicle?.state, pw = vs?.power, st = vs?.flight?.settings;
+  const pk = pw ? Object.keys(pw).filter(k => typeof pw[k] === "boolean") : [];
+  const pm = syncChips($("power"), pk, lab(POWER_L));
+  for (const k of pk) chip(pm[k], pw[k] ? "on" : "off", pw[k] ? "ON" : "OFF");
+  const ak = [], xk = [];
+  if (st) for (const k of Object.keys(st)) {
+    const v = st[k];
+    if (v && typeof v === "object" && ("enabled" in v || "active" in v)) ak.push(k);
+    else if (typeof v === "boolean") xk.push(k);
+  }
+  const am = syncChips($("assists"), ak, lab(ASSIST_L));
+  for (const k of ak) {
+    const v = st[k];
+    if (v.active) chip(am[k], "on", "ACT", "enabled + active");
+    else if (v.enabled) chip(am[k], "en", "EN", "enabled, not active");
+    else chip(am[k], "off", "OFF", "disabled");
+  }
+  const xm = syncChips($("aux"), xk, lab(AUX_L));
+  for (const k of xk) chip(xm[k], st[k] ? "on" : "off", st[k] ? "ON" : "OFF", k);
+}
+
+function renderWeapons(f) {
+  const w = f?.weapons, list = arr(w?.weapons), rows = syncWeapons(list);
+  list.forEach((x, i) => {
+    const r = rows[i]; if (!r) return;
+    T(r.pw.l, "Power"); chip(r.pw, x?.is_powered ? "on" : "off", x?.is_powered ? "ON" : "OFF");
+    T(r.rd.l, "Ready"); chip(r.rd, x?.ready_to_fire ? "on" : x?.is_powered ? "warn" : "off", x?.ready_to_fire ? "YES" : "NO");
+    T(r.ps.l, "Preset"); chip(r.ps, x?.contained_in_preset ? "en" : "off", x?.contained_in_preset ? "IN" : "OUT");
+  });
+  const pn = (w?.preset_name || "").trim(), pe = $("preset");
+  H(pe, !pn); if (pn) T(pe, "PRESET " + pn + (isNum(w?.preset_index) ? " #" + w.preset_index : ""));
+  const cms = {};
+  for (const c of arr(w?.countermeasures)) { const k = short(c?.type); if (k) cms[k] = c.amount; }
+  const keys = CMS_BASE.concat(Object.keys(cms).filter(k => !CMS_BASE.includes(k))), cm = syncCounters(keys);
+  for (const k of keys) {
+    const v = num(cms[k]), e = cm[k];
+    T(e.v, v == null ? null : String(v));
+    const sev = v == null ? null : v === 0 ? "critical" : v < 5 ? "warning" : null;
+    A(e.el, "data-sev", sev); T(e.s, sev === "critical" ? "EMPTY" : sev === "warning" ? "LOW" : v == null ? "NOT REPORTED" : "READY");
+  }
+  const ws = w?.settings, wk = ws ? Object.keys(ws).filter(k => typeof ws[k] === "boolean") : [];
+  const wm = syncChips($("wset"), wk, k => k.replace(/_/g, " ").toUpperCase());
+  for (const k of wk) chip(wm[k], ws[k] ? "en" : "off", ws[k] ? "ON" : "OFF");
+}
+
+function renderFF(f) {
+  const ff = f?.force_feedback, tu = f?.turret;
+  H($("ffPanel"), !ff && !tu);
+  H($("ffBody"), !ff); H($("ffNone"), !!ff || !tu); H($("turretBody"), !tu);
+  if (ff) {
+    for (const k of ["gunfire", "stick_shaker"]) setMeter(FFM[k], isNum(ff[k]) ? ff[k] * 100 : null, undefined, "nominal");
+    for (const grp of ["angular", "linear"]) for (const fld of ["resistance", "damping"]) for (const ax of ["x", "y", "z"])
+      T(FFA[grp + fld + ax], fx(num(ff?.[grp]?.[ax]?.[fld]), 2));
+  }
+  if (tu) {
+    const tk = Object.keys(tu).filter(k => typeof tu[k] === "boolean"), tm = syncChips($("turret"), tk, k => k.replace(/_/g, " ").toUpperCase());
+    for (const k of tk) chip(tm[k], tu[k] ? "on" : "off", tu[k] ? "ON" : "OFF");
+  }
+}
+
+function render() {
+  rafPending = false;
+  renderHeader();
+  const f = snap?.frame || null;
+  renderHero(f); renderPilot(f); renderShip(f); renderShields(f); renderSystems(f); renderWeapons(f); renderFF(f);
+  renderControls(f);
+  renderSession(snap?.session || null);
+  renderNearby(snap?.signals || null, !!(snap?.session && sessionIdle(snap.session)));
+  renderPeople(snap?.people || null, !!(snap?.session && sessionIdle(snap.session)));
+  for (const k in SPARKS) SPARKS[k].draw();
+  const det = $("rawDetails");
+  if (det.open && performance.now() - lastRaw > 500) { lastRaw = performance.now(); $("raw").textContent = f ? JSON.stringify(f, null, 2) : "—"; }
+}
+
+
+// ---- alerts: toasts, browser audio (WebAudio tones + speech), alerts panel -----------------------
+const AL = globalThis.AlertLogic;
+// per page load, in memory only: sessionStorage is cloned by "Duplicate tab", which would give two tabs
+// one id and both would play. Sound needs a fresh click after every load anyway (browser gesture rule).
+const CLIENT_ID = "tab-" + Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
+const SND = { enabled: false, ctx: null, master: null, voice: null, speech: false, hb: 0, target: false, speakTimer: 0 };
+const TOASTS = new AL.ToastStack(5);
+const narrowMQ = window.matchMedia ? window.matchMedia("(max-width: 520px)") : null;
+function fitToasts() { TOASTS.setMax(narrowMQ && narrowMQ.matches ? 3 : 5); }   // phones: 3 toasts max (bottom-anchored)
+fitToasts();
+if (narrowMQ && narrowMQ.addEventListener) narrowMQ.addEventListener("change", () => { fitToasts(); renderToasts(); });
+// toasts anchor below the sticky header, whose height changes as its meta rows wrap
+(() => { const hdr = document.querySelector(".top"); if (!hdr || !window.ResizeObserver) return;
+  new ResizeObserver(() => document.documentElement.style.setProperty("--hdr-h", Math.ceil(hdr.getBoundingClientRect().height) + "px")).observe(hdr); })();
+let alState = null, alCtl = null;
+
+function pickVoice() {
+  if (!("speechSynthesis" in window)) { SND.speech = false; return; }
+  const vs = speechSynthesis.getVoices() || [];
+  SND.voice = vs.find(v => v.default && /^en/i.test(v.lang)) || vs.find(v => /^en/i.test(v.lang)) || vs[0] || null;
+  SND.speech = vs.length > 0;
+}
+if ("speechSynthesis" in window) { pickVoice(); speechSynthesis.onvoiceschanged = () => { pickVoice(); if (SND.enabled) heartbeat(); renderAlertsUI(); }; }
+
+function playTones(notes, preempt) {
+  const ctx = SND.ctx;
+  if (!ctx || !notes.length) return 0;
+  if (preempt && SND.master) { try { SND.master.disconnect(); } catch (e) { /* already gone */ } }
+  const master = ctx.createGain(); master.gain.value = 1; master.connect(ctx.destination); SND.master = master;
+  let t = ctx.currentTime + 0.02;
+  for (const n of notes) {
+    if (n.gap) { t += n.gap; continue; }
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = n.type || "sine"; o.frequency.setValueAtTime(n.f, t);
+    if (n.f2) o.frequency.linearRampToValueAtTime(n.f2, t + n.d);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(n.v || 0.2, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + n.d);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + n.d + 0.03);
+    t += n.d;
+  }
+  return AL.toneLength(notes);
+}
+function speak(text, delayS, preempt) {
+  if (!SND.speech) return;
+  // a preempting (critical) alert also drops the speech of the alert it cuts off that is still waiting
+  // for its tones to finish; otherwise that speech would start after cancel() and delay the critical
+  if (preempt) { clearTimeout(SND.speakTimer); SND.speakTimer = 0; speechSynthesis.cancel(); }
+  if (!text) return;
+  const u = new SpeechSynthesisUtterance(text);
+  if (SND.voice) u.voice = SND.voice;
+  u.rate = 1.05;
+  SND.speakTimer = setTimeout(() => { SND.speakTimer = 0; speechSynthesis.speak(u); }, Math.max(0, delayS * 1000));
+}
+function playAlert(a, preempt) {
+  const len = playTones(AL.tonesFor(a.sound, a.severity), preempt);
+  speak(a.speech, len + 0.05, preempt);
+}
+
+function postJSON(url, body, opts) {
+  return fetch(url, Object.assign({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }, opts || {}))
+    .then(r => r.json().catch(() => ({})).then(j => { if (!r.ok) throw new Error(j.message || "HTTP " + r.status); return j; }));
+}
+// what this tab tells the bridge, re-evaluated on every heartbeat: enabled only while it can really be
+// heard (a suspended AudioContext with no speech voices would hold the route and play nothing)
+const audible = () => AL.canClaim(SND.enabled, SND.ctx ? SND.ctx.state : null, SND.speech);
+function heartbeat() {
+  const claim = audible();
+  postJSON("/api/alerts/audio-client", { client_id: CLIENT_ID, enabled: claim, speech: SND.speech })
+    .then(j => {
+      SND.target = !!j.target;
+      // a disable is retried by the interval until the bridge has it, then the heartbeat stops
+      if (!SND.enabled) { clearInterval(SND.hb); SND.hb = 0; }
+      if (j.audio && alState) { alState.audio = j.audio; renderAlertsUI(); }
+    })
+    .catch(err => console.info("audio client heartbeat failed:", err.message));
+}
+function setSound(on) {
+  if (on) {
+    let resumed = Promise.resolve();
+    try {
+      if (!SND.ctx) {
+        SND.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        SND.ctx.onstatechange = () => { if (SND.enabled) { heartbeat(); renderAlertsUI(); } };
+      }
+      resumed = SND.ctx.resume().catch(() => {});
+    } catch (e) { SND.ctx = null; }
+    pickVoice();
+    SND.enabled = true;
+    playTones(AL.tonesFor("info", "info"), false);   // audible confirmation of the gesture
+    clearInterval(SND.hb); SND.hb = setInterval(heartbeat, 4000);
+    resumed.then(() => { heartbeat(); renderAlertsUI(); });   // claim only once the context state is known
+  } else {
+    SND.enabled = false; SND.target = false;
+    clearTimeout(SND.speakTimer); SND.speakTimer = 0;
+    if ("speechSynthesis" in window) speechSynthesis.cancel();
+    clearInterval(SND.hb); SND.hb = setInterval(heartbeat, 4000);   // retried until acknowledged
+    heartbeat();
+  }
+  renderAlertsUI();
+}
+for (const b of document.querySelectorAll(".snd-toggle")) b.addEventListener("click", () => setSound(!SND.enabled));
+window.addEventListener("pagehide", () => {
+  if (SND.enabled) fetch("/api/alerts/audio-client", { method: "POST", keepalive: true, headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ client_id: CLIENT_ID, enabled: false }) }).catch(() => {});
+});
+
+// toasts
+const toastEls = new Map();
+let ackAllBtn = null;
+function renderToasts() {
+  const box = $("toasts"), items = TOASTS.list(), keep = new Set(items.map(t => t.key));
+  for (const [k, el] of toastEls) if (!keep.has(k)) { el.remove(); toastEls.delete(k); }
+  let prev = null;
+  for (const t of items) {
+    let el = toastEls.get(t.key);
+    if (!el) {
+      el = mk("div", "toast chamfer-sm"); el.dataset.sev = t.severity;
+      el.setAttribute("role", "group");   // announced once via the #alertLive / #alertLiveCrit regions
+      const ic = mk("span", "t-ico", t.icon); ic.setAttribute("aria-hidden", "true");
+      const body = mk("div", "t-body"), sv = mk("b", "t-sev"), tx = mk("span", "t-text"), tm = mk("time");
+      body.append(sv, tx, tm);
+      const x = mk("button", "t-x", t.sticky ? "ACK" : "✕"); x.type = "button";
+      x.setAttribute("aria-label", (t.sticky ? "Acknowledge " : "Dismiss ") + t.label.toLowerCase() + " alert");
+      x.addEventListener("click", () => { TOASTS.ack(t.key); renderToasts(); });
+      el.append(ic, body, x); el._p = { sv, tx, tm };
+      toastEls.set(t.key, el);
+    }
+    if (t.changed) {
+      t.changed = false;
+      el._p.sv.textContent = t.label + (t.n > 1 ? " ×" + t.n : "");
+      el._p.tx.textContent = t.text; el._p.tm.textContent = hhmmss(t.t);
+      el.setAttribute("aria-label", t.label + ": " + t.text);
+    }
+    if (prev ? prev.nextSibling !== el : box.firstChild !== el) box.insertBefore(el, prev ? prev.nextSibling : box.firstChild);
+    prev = el;
+  }
+  if (!ackAllBtn) {
+    ackAllBtn = mk("button", "t-all", "ACK ALL"); ackAllBtn.type = "button";
+    ackAllBtn.setAttribute("aria-label", "Dismiss all alert notifications (Escape)");
+    ackAllBtn.addEventListener("click", ackAllToasts);
+  }
+  if (items.length >= 2) { if (box.lastChild !== ackAllBtn) box.append(ackAllBtn); }
+  else if (ackAllBtn.parentNode) ackAllBtn.remove();
+}
+function ackAllToasts() { if (TOASTS.ackAll()) renderToasts(); }
+setInterval(() => { if (TOASTS.expire(Date.now()).length) renderToasts(); }, 500);
+
+function addRecent(a) {
+  const ul = $("alRecent");
+  if (ul.firstChild && ul.firstChild.classList && ul.firstChild.classList.contains("none")) ul.textContent = "";
+  const sev = ALERT_SEV[a.severity] || "info", li = mk("li"); li.dataset.sev = sev;
+  const tm = mk("time", null, hhmmss((a.t || Date.now() / 1000) * 1000));
+  const ic = mk("span", "ico", AL.ICON[a.severity] || "•"); ic.setAttribute("aria-hidden", "true");
+  const m = mk("span", "msg", a.text || "?"); m.title = (AL.LABEL[a.severity] || "") + ": " + (a.text || "");
+  li.append(tm, ic, m); li.setAttribute("aria-label", tm.textContent + " " + (AL.LABEL[a.severity] || "") + ": " + (a.text || ""));
+  ul.insertBefore(li, ul.firstChild);
+  while (ul.children.length > 30) ul.lastChild.remove();
+}
+const seenAlerts = new Set();
+function onAlertMsg(ev) {
+  let d; try { d = JSON.parse(ev.data); } catch (e) { return; }
+  if (!d || typeof d !== "object" || !d.alert) return;
+  const a = d.alert;
+  if (d.kind === "toast") {
+    const k = AL.alertKey(a);
+    if (seenAlerts.has(k)) return;
+    seenAlerts.add(k); if (seenAlerts.size > 300) seenAlerts.delete(seenAlerts.values().next().value);
+    TOASTS.add(a, Date.now()); renderToasts(); addRecent(a);
+    T($(a.severity === "critical" ? "alertLiveCrit" : "alertLive"), (AL.LABEL[a.severity] || "") + ": " + (a.text || ""));
+  } else if (AL.shouldPlay(d, SND.enabled)) {
+    if (SND.ctx && SND.ctx.state === "suspended") SND.ctx.resume();
+    playAlert(a, !!d.preempt);
+  }
+}
+
+// alerts panel
+function loadAlerts() {
+  if (alCtl) alCtl.abort();
+  const ctl = new AbortController(); alCtl = ctl;
+  fetch("/api/alerts?n=30", { signal: ctl.signal, cache: "no-store" })
+    .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(j => {
+      const first = !alState; alState = j;
+      if (first) for (const a of arr(j.recent).slice().reverse()) { seenAlerts.add(AL.alertKey(a)); addRecent(a); }
+      renderAlertsUI(); renderRules();
+    })
+    .catch(err => { if (err.name !== "AbortError") { T($("alNote"), "Alerts unavailable: " + err.message); A($("alNote"), "data-tone", "warning"); } });
+}
+function renderAlertsUI() {
+  for (const b of document.querySelectorAll(".snd-toggle")) {
+    A(b, "aria-pressed", SND.enabled ? "true" : "false");
+    T(b, SND.enabled ? "Sound on" : "Enable sound");
+  }
+  const au = alState?.audio;
+  const [txt, tone] = AL.routeText(au, SND.enabled, SND.target, SND.speech);
+  badge($("alRoute"), txt, tone);
+  H($("alMuted"), !au?.muted); H($("alUnmute"), !au?.muted);
+  if (au?.muted && isNum(au.muted_until)) T($("alMuted"), "MUTED · " + new Date(au.muted_until * 1000).toLocaleTimeString("en-GB", { hour12: false, hour: "2-digit", minute: "2-digit" }));
+  const sel = $("alMode"); if (au && document.activeElement !== sel && sel.value !== au.mode) sel.value = au.mode;
+  let note;
+  if (!alState) note = "Loading alerts…";
+  else if (alState.config?.error) note = "User rules ignored: " + alState.config.error;
+  else if (SND.enabled && !audible()) note = "Sound is on, but this browser blocked audio output and has no speech voices, so the bridge keeps playing alerts. Click Enable sound again.";
+  else if (SND.enabled) note = SND.target ? "This tab plays alert audio" + (SND.speech ? " (tones + speech)." : " (tones only: no speech voices in this browser).")
+    : au?.route?.to === "bridge" ? "Sound enabled here, but mode \"" + au.mode + "\" keeps audio on the bridge." : "Sound enabled; another tab plays audio.";
+  else note = au?.route?.to === "bridge" ? "No tab has sound enabled, so the bridge plays alerts" + (au.bridge?.tts ? "." : au.bridge?.player ? " (sounds only: no TTS installed)." : " (no player found).")
+    : "Click Enable sound to hear alerts in this tab.";
+  T($("alNote"), note); A($("alNote"), "data-tone", alState?.config?.error ? "warning" : null);
+}
+$("alMode").addEventListener("change", ev => {
+  fetch("/api/alerts/audio", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: ev.target.value }) })
+    .then(() => loadAlerts()).catch(err => console.info("mode change failed:", err.message));
+});
+for (const b of document.querySelectorAll("#alertsPanel [data-min]")) b.addEventListener("click", () => {
+  postJSON("/api/alerts/mute", { minutes: Number(b.dataset.min) }).then(() => loadAlerts()).catch(err => { T($("alNote"), "Mute failed: " + err.message); });
+});
+const ruleEls = new Map();
+function renderRules() {
+  const ul = $("alRules"), rules = arr(alState?.rules);
+  T($("alRuleCount"), rules.filter(r => r.enabled).length + " / " + rules.length + " on");
+  for (const r of rules) {
+    let row = ruleEls.get(r.id);
+    if (!row) {
+      const li = mk("li", "al-rule"), lab = mk("label"), cb = mk("input"), t = mk("span", "r-t");
+      cb.type = "checkbox"; lab.append(cb, t);
+      const sv = mk("span", "badge"), test = mk("button", "btn", "Test"); test.type = "button";
+      const d = mk("p", "r-d");
+      li.append(lab, sv, test, d); ul.append(li);
+      cb.addEventListener("change", () => toggleRule(r.id, cb.checked, cb));
+      test.addEventListener("click", () => postJSON("/api/alerts/test", { id: r.id }).catch(err => { T($("alNote"), "Test failed: " + err.message); }));
+      row = { li, cb, t, sv, d, test }; ruleEls.set(r.id, row);
+    }
+    row.cb.checked = !!r.enabled; A(row.li, "data-off", r.enabled ? null : "");
+    T(row.t, r.message.replace(/\{[^}]*\}/g, "N"), r.id);
+    badge(row.sv, AL.LABEL[r.severity] || r.severity, r.severity === "critical" ? "critical" : r.severity === "warn" ? "warning" : "info");
+    row.test.setAttribute("aria-label", "Test alert " + r.id);
+    row.cb.setAttribute("aria-label", "Enable alert " + r.id);
+    row.d.textContent = "";
+    if (!r.verified) { const c = mk("span", "chip", "UNVERIFIED"); c.dataset.s = "en"; c.title = "Data source never observed changing in a recording"; row.d.append(c); }
+    row.d.append((r.description || "") + (r.speech ? " · says “" + r.speech + "”" : " · no speech"));
+  }
+}
+function toggleRule(id, on, cb) {
+  cb.disabled = true;
+  fetch("/api/alerts/rules", { cache: "no-store" }).then(r => r.json())
+    .then(j => {
+      const rules = arr(j.rules).map(r => (r.id === id ? Object.assign({}, r, { enabled: on }) : r));
+      return fetch("/api/alerts/rules", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rules }) })
+        .then(r => r.json().then(b => { if (!r.ok) throw new Error(b.message || "HTTP " + r.status); }));
+    })
+    .catch(err => { cb.checked = !on; T($("alNote"), "Saving rule failed: " + err.message); A($("alNote"), "data-tone", "warning"); })
+    .finally(() => { cb.disabled = false; loadAlerts(); });
+}
+setInterval(() => { if (!document.hidden) loadAlerts(); }, 5000);
+
+// ---- data plumbing ---------------------------------------------------------------
+let histCtl = null;
+function loadHistory() {
+  if (histCtl) histCtl.abort();
+  const ctl = new AbortController(); histCtl = ctl;
+  fetch("/api/history", { signal: ctl.signal, cache: "no-store" })
+    .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(h => {
+      const ts = arr(h?.t), ser = h?.series || {};
+      for (const k in SPARKS) { const vs = arr(ser[k]); SPARKS[k].seed(ts, vs.length === ts.length ? vs : ts.map((_, i) => vs[i] ?? null)); }
+      histState = ts.length + " pts"; scheduleRender();
+    })
+    .catch(err => {
+      if (err.name === "AbortError") return;
+      histState = "live only"; console.info("history unavailable, live-only sparklines:", err.message); scheduleRender();
+    });
+}
+
+let es = null, watchdog = 0, lastMsg = 0, reconnectTimer = 0, wasOffline = false;
+function goOffline() { if (connState !== "offline") { connState = "offline"; wasOffline = true; scheduleRender(); } }
+function connect() {
+  if (es) { es.onmessage = es.onerror = es.onopen = null; es.close(); }
+  es = new EventSource("/events?client=" + encodeURIComponent(CLIENT_ID));
+  es.addEventListener("alert", onAlertMsg);
+  es.onopen = () => {
+    connState = "open"; lastMsg = Date.now();
+    if (wasOffline) { wasOffline = false; loadHistory(); }
+    scheduleRender();
+  };
+  es.onerror = () => {
+    goOffline();
+    if (es.readyState === EventSource.CLOSED) { clearTimeout(reconnectTimer); reconnectTimer = setTimeout(connect, 3000); }
+  };
+  es.onmessage = ev => {
+    let d; try { d = JSON.parse(ev.data); } catch (e) { return; }
+    if (!d || typeof d !== "object") return;
+    lastMsg = Date.now();
+    if (connState !== "open") { connState = "open"; if (wasOffline) { wasOffline = false; loadHistory(); } }
+    const nowMs = Date.now();
+    if (d.sample && typeof d.sample === "object") pushSample(d.sample);
+    else if (d.frame && !("sample" in d) && String(d.status || "").startsWith("streaming") && nowMs - lastLocalSample >= SAMPLE_DT * 1000) {
+      lastLocalSample = nowMs; pushSample(extractSample(d.frame, nowMs / 1000));
+    }
+    ingestServerEvents(d.events);
+    if (d.frame && (!snap || snap.frames_total !== d.frames_total)) deriveLog(d.frame, nowMs);
+    snap = d;
+    scheduleRender();
+  };
+}
+clearInterval(watchdog);
+watchdog = setInterval(() => {
+  if (connState === "open" && Date.now() - lastMsg > 5000) { goOffline(); clearTimeout(reconnectTimer); reconnectTimer = setTimeout(connect, 500); }
+  else scheduleRender();   // keep age/stale badge fresh
+}, 1000);
+
+$("copyBtn").addEventListener("click", ev => {
+  ev.preventDefault(); ev.stopPropagation();
+  const txt = snap?.frame ? JSON.stringify(snap.frame, null, 2) : "";
+  const btn = ev.currentTarget;
+  const done = ok => { btn.textContent = ok ? "Copied" : "Copy failed"; setTimeout(() => { btn.textContent = "Copy JSON"; }, 1500); };
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(txt).then(() => done(true), () => done(fallbackCopy(txt)));
+  else done(fallbackCopy(txt));
+});
+function fallbackCopy(txt) {
+  const ta = mk("textarea"); ta.value = txt; ta.style.position = "fixed"; ta.style.opacity = "0"; document.body.append(ta); ta.select();
+  let ok = false; try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+  ta.remove(); return ok;
+}
+$("rawDetails").addEventListener("toggle", () => { lastRaw = 0; scheduleRender(); });
+
+loadHistory();
+connect();
+loadStateMaps();
+loadActions();
+loadAlerts();
+scheduleRender();
+</script>
+</body>
+</html>

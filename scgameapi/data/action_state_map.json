@@ -1,0 +1,369 @@
+{
+ "$comment": "Maps triggerable action names to the telemetry field that reflects their state. Paths are dotted into the proto3-JSON frame (snake_case). kind: bool | enum | availability | annunciator | value; invert flips bool meaning. Shared source of truth for the dashboard Controls panel and the OpenDeck plugin. verified=true means the field was observed changing in real recordings. The action-to-field link itself was only confirmed live for v_lights (2026-11-21); the rest are inferred from names.",
+ "version": 1,
+ "groups": [
+  {
+   "id": "lights",
+   "path": "vehicle.state.lights_enabled",
+   "kind": "bool",
+   "labels": [
+    "OFF",
+    "ON"
+   ],
+   "actions": {
+    "v_lights": "toggle",
+    "v_lights_on": "on",
+    "v_lights_off": "off"
+   },
+   "verified": true
+  },
+  {
+   "id": "gear",
+   "path": "vehicle.state.flight.state.gear",
+   "kind": "enum",
+   "prefix": "VEHICLE_COMPONENT_DEPLOYMENT_STATE_",
+   "labels": {
+    "RETRACTED": "UP",
+    "DEPLOYING": "DEPLOYING",
+    "DEPLOYED": "DOWN",
+    "RETRACTING": "RETRACTING"
+   },
+   "on": [
+    "DEPLOYED",
+    "DEPLOYING"
+   ],
+   "actions": {
+    "v_toggle_landing_system": "toggle",
+    "v_deploy_landing_system": "on",
+    "v_retract_landing_system": "off"
+   },
+   "verified": true
+  },
+  {
+   "id": "vtol",
+   "path": "vehicle.state.flight.state.vtol",
+   "kind": "enum",
+   "prefix": "VEHICLE_COMPONENT_DEPLOYMENT_STATE_",
+   "labels": {
+    "RETRACTED": "OFF",
+    "DEPLOYING": "...",
+    "DEPLOYED": "ON",
+    "RETRACTING": "..."
+   },
+   "on": [
+    "DEPLOYED",
+    "DEPLOYING"
+   ],
+   "actions": {
+    "v_vtol_toggle": "toggle",
+    "v_vtol_on": "on",
+    "v_vtol_off": "off"
+   },
+   "verified": false
+  },
+  {
+   "id": "transform",
+   "path": "vehicle.state.flight.state.transformation",
+   "kind": "enum",
+   "prefix": "VEHICLE_COMPONENT_DEPLOYMENT_STATE_",
+   "labels": {
+    "RETRACTED": "STOWED",
+    "DEPLOYING": "...",
+    "DEPLOYED": "DEPLOYED",
+    "RETRACTING": "..."
+   },
+   "on": [
+    "DEPLOYED",
+    "DEPLOYING"
+   ],
+   "actions": {
+    "v_transform_cycle": "toggle",
+    "v_transform_deploy": "on",
+    "v_transform_retract": "off"
+   },
+   "verified": false
+  },
+  {
+   "id": "gsafe",
+   "path": "vehicle.state.flight.settings.ifcs_g_safe",
+   "kind": "availability",
+   "actions": {
+    "v_ifcs_toggle_gforce_safety": "toggle",
+    "v_ifcs_gsafe_on": "on",
+    "v_ifcs_gsafe_off": "off"
+   },
+   "verified": true
+  },
+  {
+   "id": "esp",
+   "path": "vehicle.state.flight.settings.ifcs_esp",
+   "kind": "availability",
+   "actions": {
+    "v_ifcs_toggle_esp": "toggle"
+   },
+   "verified": true
+  },
+  {
+   "id": "prox",
+   "path": "vehicle.state.flight.settings.ifcs_proximity_assist",
+   "kind": "availability",
+   "actions": {
+    "v_ifcs_proximity_assist_toggle": "toggle",
+    "v_ifcs_proximity_assist_on": "on",
+    "v_ifcs_proximity_assist_off": "off"
+   },
+   "verified": true
+  },
+  {
+   "id": "decoupled",
+   "path": "vehicle.state.flight.settings.ifcs_coupled",
+   "kind": "availability",
+   "invert": true,
+   "labels": [
+    "COUPLED",
+    "DECOUPLED"
+   ],
+   "actions": {
+    "v_ifcs_vector_decoupling_toggle": "toggle",
+    "v_ifcs_vector_decoupling_on": "on",
+    "v_ifcs_vector_decoupling_off": "off"
+   },
+   "verified": true
+  },
+  {
+   "id": "master",
+   "path": "vehicle.state.master_mode.mode",
+   "kind": "enum",
+   "prefix": "VEHICLE_MASTER_MODE_",
+   "labels": {
+    "NAVIGATION": "NAV",
+    "SCM": "SCM",
+    "STEALTH": "STEALTH"
+   },
+   "actions": {
+    "v_master_mode_cycle": "cycle",
+    "v_master_mode_set_nav": {
+     "active_when": "NAVIGATION"
+    },
+    "v_master_mode_set_scm": {
+     "active_when": "SCM"
+    }
+   },
+   "sub": {
+    "path": "vehicle.state.master_mode.spooled",
+    "false_label": "SPOOLING"
+   },
+   "verified": true
+  },
+  {
+   "id": "power",
+   "path": "vehicle.state.power.powerplants",
+   "kind": "bool",
+   "labels": [
+    "OFF",
+    "ON"
+   ],
+   "actions": {
+    "v_power_toggle": "toggle",
+    "v_power_set_on": "on",
+    "v_power_set_off": "off"
+   },
+   "verified": false
+  },
+  {
+   "id": "power_shields",
+   "path": "vehicle.state.power.shield_generators",
+   "kind": "bool",
+   "labels": [
+    "OFF",
+    "ON"
+   ],
+   "actions": {
+    "v_power_toggle_shields": "toggle",
+    "v_power_set_shields_on": "on",
+    "v_power_set_shields_off": "off"
+   },
+   "verified": true
+  },
+  {
+   "id": "power_thrusters",
+   "path": "vehicle.state.power.engines",
+   "kind": "bool",
+   "labels": [
+    "OFF",
+    "ON"
+   ],
+   "actions": {
+    "v_power_toggle_thrusters": "toggle",
+    "v_power_set_thrusters_on": "on",
+    "v_power_set_thrusters_off": "off"
+   },
+   "verified": false
+  },
+  {
+   "id": "power_weapons",
+   "path": "vehicle.state.power.weapons",
+   "kind": "bool",
+   "labels": [
+    "OFF",
+    "ON"
+   ],
+   "actions": {
+    "v_power_toggle_weapons": "toggle",
+    "v_power_set_weapons_on": "on",
+    "v_power_set_weapons_off": "off"
+   },
+   "verified": false
+  },
+  {
+   "id": "light_amp",
+   "path": "vehicle.state.flight.settings.flight_light_amplification",
+   "alt_path": "turret.light_amplification",
+   "kind": "bool",
+   "labels": [
+    "OFF",
+    "ON"
+   ],
+   "actions": {
+    "v_light_amplification_toggle": "toggle",
+    "v_light_amplification_on": "on",
+    "v_light_amplification_off": "off"
+   },
+   "verified": false
+  },
+  {
+   "id": "adv_hud",
+   "path_by_master": {
+    "NAVIGATION": "vehicle.state.flight.settings.advanced_hud_enabled_nav",
+    "SCM": "vehicle.state.flight.settings.advanced_hud_enabled_scm"
+   },
+   "kind": "bool",
+   "labels": [
+    "OFF",
+    "ON"
+   ],
+   "actions": {
+    "v_flight_advanced_hud_toggle": "toggle",
+    "v_flight_advanced_hud_on": "on",
+    "v_flight_advanced_hud_off": "off"
+   },
+   "verified": false
+  },
+  {
+   "id": "doors",
+   "path": "vehicle.state.doors.open_state",
+   "kind": "enum",
+   "prefix": "DOOR_OPEN_STATE_",
+   "labels": {
+    "OPENED": "OPEN",
+    "CLOSED": "CLOSED"
+   },
+   "on": [
+    "OPENED"
+   ],
+   "actions": {
+    "v_toggle_all_doors": "toggle",
+    "v_open_all_doors": "on",
+    "v_close_all_doors": "off"
+   },
+   "absent_label": "N/A",
+   "verified": false,
+   "known_issue": "PTU 5.0: remote trigger returns FAILED on RSI Perseus although the keyboard binding works; doors telemetry absent. See docs/telemetry/triggerable-actions.md#known-issues"
+  },
+  {
+   "id": "door_locks",
+   "path": "vehicle.state.doors.lock_state",
+   "kind": "enum",
+   "prefix": "DOOR_LOCK_STATE_",
+   "labels": {
+    "LOCKED": "LOCKED",
+    "UNLOCKED": "UNLOCKED"
+   },
+   "on": [
+    "LOCKED"
+   ],
+   "actions": {
+    "v_toggle_all_doorlocks": "toggle",
+    "v_lock_all_doors": "on",
+    "v_unlock_all_doors": "off"
+   },
+   "absent_label": "N/A",
+   "verified": false,
+   "known_issue": "PTU 5.0: remote trigger returns FAILED on RSI Perseus although the keyboard binding works; doors telemetry absent. See docs/telemetry/triggerable-actions.md#known-issues"
+  },
+  {
+   "id": "gmeter",
+   "path": "vehicle.state.flight.instruments.g_meter.max",
+   "kind": "value",
+   "format": "peak {v:.1f} G",
+   "actions": {
+    "v_ifcs_reset_gmeter_max": "show"
+   },
+   "verified": true
+  },
+  {
+   "id": "qdrive",
+   "path": "vehicle.state.annunciators.qdrv",
+   "kind": "annunciator",
+   "actions": {
+    "v_toggle_qdrive_engagement": "show"
+   },
+   "verified": false
+  },
+  {
+   "id": "radar",
+   "path": "vehicle.state.annunciators.radr",
+   "kind": "annunciator",
+   "actions": {
+    "v_invoke_ping": "show"
+   },
+   "verified": false
+  },
+  {
+   "id": "operator_guns",
+   "path": "weapons.weapons[*].ready_to_fire",
+   "kind": "any_bool",
+   "labels": [
+    "NOT GUNS",
+    "GUNS"
+   ],
+   "actions": {
+    "v_set_guns_mode": {
+     "active_when": true
+    }
+   },
+   "verified": true,
+   "note": "Only guns vs not guns can be inferred (any vehicle gun ready_to_fire). Other operator modes are indistinguishable; status OK is returned even for modes the ship lacks (Prospector salvage/refuel). Only the Guns Mode button shows this state; other operator-mode buttons show capability gating only (showing 'GUNS' on them read as their own state)."
+  }
+ ],
+ "stateless": [
+  "mobiglas",
+  "toggle_flashlight",
+  "v_starmap",
+  "visor_wipe",
+  "v_flightready",
+  "v_atc_request",
+  "v_target_hail",
+  "v_toggle_docking_request",
+  "v_eject",
+  "v_emergency_exit",
+  "v_self_destruct",
+  "v_lock_all_ports",
+  "v_unlock_all_ports",
+  "v_toggle_all_portlocks",
+  "v_operator_mode_cycle_back",
+  "v_operator_mode_cycle_forward",
+  "v_enter_remote_turret_1",
+  "v_enter_remote_turret_2",
+  "v_enter_remote_turret_3",
+  "emote_*"
+ ],
+ "semantics": {
+  "toggle": "show current state; pressing flips it",
+  "on": "button is 'lit' when state is on; pressing again has no effect",
+  "off": "button is 'lit' when state is off",
+  "cycle": "show current value",
+  "show": "show related value; press does the action",
+  "active_when": "button lit when enum equals the given value"
+ }
+}
