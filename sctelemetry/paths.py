@@ -15,7 +15,7 @@ Order (first install dir that holds a channel wins):
      bottles, then globs: ~/Games/*, Steam Proton prefixes (<steam>/steamapps/compatdata/*/pfx under
      ~/.steam/steam, ~/.local/share/Steam, Flatpak Steam), /mnt/*/star-citizen*, /mnt/*/*/star-citizen*, /media/<user>/*/...,
      /run/media/<user>/*/... (each + drive_c/Program Files/Roberts Space Industries/StarCitizen)
-Channel: $SCGAMEAPI_CHANNEL, else the channel whose Game.log (or exe) was written last, else LIVE.
+Channel: $SCTELEMETRY_CHANNEL, else the channel whose Game.log (or exe) was written last, else LIVE.
 """
 from __future__ import annotations
 
@@ -24,6 +24,8 @@ import pathlib
 import re
 import string
 import sys
+
+from . import envcompat
 
 CHANNELS = ("LIVE", "PTU", "HOTFIX", "EPTU", "TECH-PREVIEW")
 DEFAULT_CHANNEL = "LIVE"
@@ -150,11 +152,12 @@ def _mtime(p: pathlib.Path) -> float:
 
 
 def default_channel(sc_dir: pathlib.Path | None, env=None) -> str:
-    """$SCGAMEAPI_CHANNEL (upper-cased, not validated here), else the channel last played (newest
+    """$SCTELEMETRY_CHANNEL (upper-cased, not validated here), else the channel last played (newest
     Game.log, then newest exe), else LIVE."""
     env = _env(env)
-    if env.get("SCGAMEAPI_CHANNEL"):
-        return env["SCGAMEAPI_CHANNEL"].upper()
+    ch = envcompat.getenv("CHANNEL", env=env)
+    if ch:
+        return ch.upper()
     if sc_dir is None:
         return DEFAULT_CHANNEL
     best, best_t = DEFAULT_CHANNEL, -1.0

@@ -75,7 +75,7 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:50;
 .meta .kv1{display:inline-flex;gap:6px;align-items:baseline;min-width:0}
 .meta .kv1 b{font:500 12px var(--font-mono);color:var(--color-text-base);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:44ch}
 
-/* badges (StarOrg Badge) */
+/* badges */
 .badge{--tone:var(--color-text-muted);--ink:var(--muted-ink);display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
   font:700 10px/1 var(--font-display);letter-spacing:.08em;text-transform:uppercase;padding:4px 8px;border-radius:999px;color:var(--ink);
   background:color-mix(in srgb,var(--tone),transparent 80%);border:1px solid color-mix(in srgb,var(--tone),transparent 70%)}
@@ -1585,7 +1585,7 @@ function statusTone(s) {
   return k === "OK" ? "ok" : k === "RATE_LIMITED" || k === "MAP_INACTIVE" ? "warn" : "crit";
 }
 
-// shared action -> telemetry state map + shield face layouts, served by the bridge from scgameapi/data/
+// shared action -> telemetry state map + shield face layouts, served by the bridge from sctelemetry/data/
 const AS = { map: null, index: null, faces: null, unsupported: new Set(), timer: 0, ctl: null };
 function loadStateMaps() {
   clearTimeout(AS.timer);

@@ -8,8 +8,8 @@ import pathlib
 import pytest
 from fastapi.testclient import TestClient
 
-from scgameapi import server as srv
-from scgameapi import shipcaps as sc
+from sctelemetry import server as srv
+from sctelemetry import shipcaps as sc
 
 MINER = {"name": "TEST Miner", "displayName": "TEST Miner", "recordName": "EntityClassDefinition.TEST_Miner",
          "role": "Light Mining", "career": "Industrial",

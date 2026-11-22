@@ -1,10 +1,13 @@
 ---
-title: scgameapi vault
+title: sc-telemetry vault
 tags: [docs]
 updated: 2026-11-21
 ---
 
-# scgameapi vault
+# sc-telemetry vault
+
+## Getting started
+- [[install]] — ([open](install.md)) — step-by-step install for players: uv, enabling the game's telemetry (env vars + USER.cfg) on Windows and Linux, running the bridge, extras, troubleshooting, uninstall
 
 ## Telemetry
 - [[api-spec]] — ([open](telemetry/api-spec.md)) — full API spec: transport, enabling, RPCs, read/write model, semantics, security, versioning
@@ -19,7 +22,7 @@ updated: 2026-11-21
 - [[game-telemetry-api]] — ([open](telemetry/game-telemetry-api.md)) — SC client's local gRPC telemetry service: schema, data fields, how to enable, LIVE vs PTU
 
 ## Plans
-- [[ideas]] — ([open](plans/later/ideas.md)) — ice box: Rust port, StarOrg Codex integration (Rust home), StarOrg shared org telemetry
+- [[ideas]] — ([open](plans/later/ideas.md)) — ice box: Rust port, MCP/agent integration, hardware button panels, mappings from game files, opt-in shared org telemetry
 
 ## Meta
 - [[changelog]] — ([open](changelog.md)) — dated record of changes

@@ -1,11 +1,11 @@
-"""Star Citizen install discovery (scgameapi/paths.py) on simulated Windows / Linux / macOS layouts.
+"""Star Citizen install discovery (sctelemetry/paths.py) on simulated Windows / Linux / macOS layouts.
 Everything lives under tmp_path; no real /home, /mnt or C:\\ path is ever read."""
 import os
 import pathlib
 
 import pytest
 
-from scgameapi import gamelog, paths, schema
+from sctelemetry import gamelog, paths, schema
 
 WINE = ("drive_c", "Program Files", "Roberts Space Industries", "StarCitizen")
 
@@ -86,27 +86,27 @@ def test_macos_crossover_bottle(tmp_path):
 def test_default_channel_env_then_last_played_then_live(tmp_path):
     sc = install(tmp_path / "sc", "LIVE", "PTU", t=1_700_000_000)  # PTU Game.log written last
     assert paths.default_channel(sc, env={}) == "PTU"
-    assert paths.default_channel(sc, env={"SCGAMEAPI_CHANNEL": "hotfix"}) == "HOTFIX"
+    assert paths.default_channel(sc, env={"SCTELEMETRY_CHANNEL": "hotfix"}) == "HOTFIX"
     assert paths.default_channel(None, env={}) == "LIVE"
     assert paths.default_channel(tmp_path / "missing", env={}) == "LIVE"
 
 
 def test_error_lists_searched_paths(tmp_path, monkeypatch):
     monkeypatch.setattr(schema, "CACHE", tmp_path / "cache")
-    for v in ("SCGAMEAPI_PROTO_DIR", "SCGAMEAPI_EXE", "SCGAMEAPI_CHANNEL"):
+    for v in ("SCTELEMETRY_PROTO_DIR", "SCTELEMETRY_EXE", "SCTELEMETRY_CHANNEL"):
         monkeypatch.delenv(v, raising=False)
     monkeypatch.setenv("SC_DIR", str(tmp_path / "no-install"))
     with pytest.raises(RuntimeError) as e:
         schema.resolve(log=lambda m: None)
     msg = str(e.value)
-    assert str(tmp_path / "no-install") in msg and "SC_DIR" in msg and "SCGAMEAPI_EXE" in msg
+    assert str(tmp_path / "no-install") in msg and "SC_DIR" in msg and "SCTELEMETRY_EXE" in msg
 
 
 def test_schema_uses_detected_install_and_channel(tmp_path, monkeypatch):
     sc = install(tmp_path / "sc", "LIVE", t=1_700_000_000)
     seen = {}
     monkeypatch.setattr(schema, "_ensure", lambda exe, key, log: seen.setdefault("exe", exe))
-    for v in ("SCGAMEAPI_PROTO_DIR", "SCGAMEAPI_EXE", "SCGAMEAPI_CHANNEL"):
+    for v in ("SCTELEMETRY_PROTO_DIR", "SCTELEMETRY_EXE", "SCTELEMETRY_CHANNEL"):
         monkeypatch.delenv(v, raising=False)
     monkeypatch.setenv("SC_DIR", str(sc))
     schema.resolve(log=lambda m: None)

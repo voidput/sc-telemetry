@@ -6,7 +6,7 @@ updated: 2026-11-21
 
 # Action state map (live state on action buttons)
 
-`scgameapi/data/action_state_map.json` is the single source of truth for which telemetry field shows the state of a triggerable action. The bridge serves it at `GET /api/action-states` ([api-spec.md §8.5](api-spec.md#85-action-state-map-ship-capabilities-shield-faces)). The dashboard Controls panel reads it at runtime. The OpenDeck plugin (on hold) is meant to load the same endpoint, with a bundled fallback copy.
+`sctelemetry/data/action_state_map.json` is the single source of truth for which telemetry field shows the state of a triggerable action. The bridge serves it at `GET /api/action-states` ([api-spec.md §8.5](api-spec.md#85-action-state-map-ship-capabilities-shield-faces)). The dashboard Controls panel reads it at runtime. Other clients (e.g. a hardware button panel) can load the same endpoint, ideally with a bundled fallback copy.
 
 Rendering state never sends an action.
 
@@ -82,7 +82,7 @@ When the capability is `false`, the button shows `N/A · no <cap>`, muted. It ca
 
 ## Shield faces
 
-`vehicle.state.shields.faces` has a variable length that follows the ship's face layout. It is **not** the generator count: Prospector has 1 face (bubble) and 3 generators, Perseus has 4 faces and 2 generators. `scgameapi/data/shield_faces.json` (`GET /api/shield-faces`) describes the layout for each count:
+`vehicle.state.shields.faces` has a variable length that follows the ship's face layout. It is **not** the generator count: Prospector has 1 face (bubble) and 3 generators, Perseus has 4 faces and 2 generators. `sctelemetry/data/shield_faces.json` (`GET /api/shield-faces`) describes the layout for each count:
 
 - 1 face: a full ring, `BUBBLE`
 - 2 faces: front/back halves

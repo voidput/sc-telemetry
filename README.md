@@ -1,12 +1,16 @@
-# scgameapi
+# sc-telemetry
+
+[![ci](https://github.com/voidput/sc-telemetry/actions/workflows/ci.yml/badge.svg)](https://github.com/voidput/sc-telemetry/actions/workflows/ci.yml)
 
 Unofficial client, documentation and live dashboard for **Star Citizen's local Game Telemetry API**, the gRPC service `sc.game.telemetry.v1.GameTelemetryService` that the game client can host on localhost. It is present in LIVE 4.10 and PTU 5.0, and CIG has not documented it.
 
-> Not affiliated with or endorsed by Cloud Imperium Games. Uses only the game's own configuration switches; no binaries are modified. Behaviour may change with any patch.
+> Unofficial fan project, not affiliated with or endorsed by Cloud Imperium Games. Uses only the game's own configuration switches; no game files are modified. Behaviour may change with any patch. See [Legal](#legal-and-disclaimer).
+
+![sc-telemetry dashboard with synthetic --mock data: pilot vitals, ship status, capabilities and systems panels](docs/assets/dashboard.png)
 
 ## What you get
 
-- **The schema:** extracted at runtime from your own `StarCitizen.exe` and cached per build in `.tmp/proto/<branch>-<CL>/` (`scgameapi/schema.py`). No CIG-derived files are committed.
+- **The schema:** extracted at runtime from your own `StarCitizen.exe` and cached per build in `.tmp/proto/<branch>-<CL>/` (`sctelemetry/schema.py`). No CIG-derived files are committed.
 - **Live data at about 20 Hz:**
   - Player vitals: heart rate, health, oxygen, G-load, temperature, radiation.
   - Ship: speed, heading, fuel, boost, hull, shield faces, master mode, power state, annunciators, landing gear, IFCS assists.
@@ -16,87 +20,38 @@ Unofficial client, documentation and live dashboard for **Star Citizen's local G
 
 ## Docs
 
+- [Install guide](docs/install.md): step-by-step setup for Windows and Linux, troubleshooting, uninstall.
 - [API spec](docs/telemetry/api-spec.md): transport, enabling, RPCs, the read/write model, data gotchas, security and versioning.
 - [API reference](docs/telemetry/api-reference.md): generated tables of every message, field and enum, with observed ranges.
 - [Discovery notes](docs/telemetry/game-telemetry-api.md): how it was found and the test log.
 
-## Setup
+## Quick start
 
-Works on **Windows** and **Linux** (Wine / LUG Helper / Lutris / Steam Proton prefixes). The bridge runs on the same machine as the game. Both OSes are tested in CI (`.github/workflows/ci.yml`); Windows has not yet been verified against a live game, so reports are welcome.
+Works on **Windows** and **Linux** (Wine / LUG Helper / Lutris / Steam Proton). The bridge runs on the same PC as the game. Both OSes are tested in CI; Windows has not yet been verified against a live game, so reports are welcome. **Step-by-step guide for players, with troubleshooting: [docs/install.md](docs/install.md).**
 
-### 1. Install uv (Python 3.13 is fetched by uv)
+1. **Install [uv](https://docs.astral.sh/uv/)** (it fetches Python 3.13 itself): Windows `winget install astral-sh.uv`, Linux `curl -LsSf https://astral.sh/uv/install.sh | sh`. Then `git clone https://github.com/voidput/sc-telemetry.git` (or download the [ZIP](https://github.com/voidput/sc-telemetry/archive/refs/heads/main.zip)) and open a terminal in the folder.
+2. **Set two environment variables for the game.** Windows: `setx GRPC_CLIENT_SERVER_ENABLED 1` and `setx GRPC_CLIENT_SERVER_PORT 50051`, then fully quit the RSI Launcher (tray icon too) and start it again; the game inherits them from the launcher. Linux: `export` both in the script or Lutris / Steam settings that start the launcher under Wine.
+3. **Add to `USER.cfg`** in your channel folder, e.g. `C:\Program Files\Roberts Space Industries\StarCitizen\PTU\USER.cfg` (create it if missing):
 
-| OS | Command |
-|---|---|
-| Windows | `winget install astral-sh.uv` or `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 \| iex"` |
-| Linux | `curl -LsSf https://astral.sh/uv/install.sh \| sh` (or your distro's `uv` package) |
+   ```ini
+   server.game.telemetry.enabled = 1
+   ; optional: let local programs press allowlisted game inputs
+   ; server.game.telemetry.trigger.actions.enabled = 1
+   ```
 
-Then in a clone of this repo: `uv sync`.
+4. **Launch the game.** `Game.log` should show `GameTelemetryService ... 127.0.0.1:50051 [Insecure]`.
+5. **Run the bridge** and open <http://127.0.0.1:8765>:
 
-### 2. Enable the API in the game
+   ```bash
+   uv run sctelemetry          # Linux alt: scripts/run.sh; Windows: use this command (run.ps1 needs -ExecutionPolicy Bypass)
+   uv run sctelemetry --channel PTU --sc-dir "<StarCitizen folder>"   # if auto-detection misses
+   ```
 
-The game needs two environment variables at launch plus one `USER.cfg` line.
+   The first run extracts the schema from your `StarCitizen.exe` and caches it per build in `.tmp/proto/`. Data flows once your character is in the world. Click **Enable sound** in the dashboard for alert audio.
 
-**Windows** (PowerShell or cmd, user env vars):
+Verified on PTU 5.0. LIVE 4.10 has the stream only and uses different switches ([API spec §2](docs/telemetry/api-spec.md#2-enabling)). Install discovery order: [docs/install.md](docs/install.md#finding-your-install) and `sctelemetry/paths.py`.
 
-```powershell
-setx GRPC_CLIENT_SERVER_ENABLED 1
-setx GRPC_CLIENT_SERVER_PORT 50051
-```
-
-`setx` only affects processes started afterwards: fully quit the RSI Launcher (including its tray icon) and start it again so the game inherits the variables.
-
-**Linux (Wine / LUG / Lutris):** export them in whatever starts the RSI Launcher under Wine, before `wine` runs. For example the LUG Helper launch script (`sc-launch.sh` in your prefix), or the environment-variables section of the Lutris / Steam game settings:
-
-```bash
-export GRPC_CLIENT_SERVER_ENABLED=1
-export GRPC_CLIENT_SERVER_PORT=50051
-```
-
-**USER.cfg** (create the file if it does not exist) in the channel folder you play, e.g. `LIVE` or `PTU`:
-
-| OS | Path |
-|---|---|
-| Windows | `C:\Program Files\Roberts Space Industries\StarCitizen\<CHANNEL>\USER.cfg` (or your library folder) |
-| Linux | `<WINEPREFIX>/drive_c/Program Files/Roberts Space Industries/StarCitizen/<CHANNEL>/USER.cfg` |
-
-```ini
-server.game.telemetry.enabled = 1
-; optional: allow external clients to press allowlisted input actions
-; server.game.telemetry.trigger.actions.enabled = 1
-```
-
-Launch the game. `Game.log` should show `GameTelemetryService ... 127.0.0.1:50051 [Insecure]`. Frames start once your character is in the world. Verified on PTU 5.0; on LIVE 4.10 the switches differ (see the spec).
-
-### 3. Run the dashboard
-
-```bash
-uv run scgameapi-dashboard          # -> http://127.0.0.1:8765
-```
-
-Or use the thin wrappers `scripts/run.sh` (Linux) / `scripts/run.ps1` (Windows), which pass all arguments through.
-
-**Install discovery.** The bridge needs `StarCitizen.exe` (to extract the schema) and `Game.log` (session context). It finds the install dir (the `StarCitizen` folder holding `LIVE/`, `PTU/` ...) in this order (`scgameapi/paths.py`):
-
-1. `--sc-dir DIR` or `$SC_DIR`
-2. Windows: `%ProgramFiles%\Roberts Space Industries\StarCitizen`, then `<drive>:\Program Files\Roberts Space Industries\StarCitizen`, `<drive>:\Roberts Space Industries\StarCitizen`, `<drive>:\Games\Roberts Space Industries\StarCitizen` on every drive, plus paths named in the RSI Launcher log (best effort)
-3. Linux: `$WINEPREFIX`, `~/Games/star-citizen` (LUG / Lutris default), `~/.wine`, `~/Games/*`, Steam Proton prefixes (`steamapps/compatdata/*/pfx` under `~/.steam/steam`, `~/.local/share/Steam` or Flatpak Steam; a Steam library on another drive needs `SC_DIR` or `WINEPREFIX`), then `/mnt/*/star-citizen*`, `/mnt/*/*/star-citizen*`, `/media/<user>/*/star-citizen*`, `/run/media/<user>/*/star-citizen*` (each + `drive_c/Program Files/Roberts Space Industries/StarCitizen`)
-
-The channel is `--channel` / `$SCGAMEAPI_CHANNEL`, else the channel whose `Game.log` was written last, else `LIVE`. If the install is elsewhere, set it explicitly:
-
-```powershell
-# Windows PowerShell
-$env:SC_DIR = "D:\Games\Roberts Space Industries\StarCitizen"
-$env:SCGAMEAPI_CHANNEL = "PTU"
-uv run scgameapi-dashboard
-```
-```bash
-# Linux
-SC_DIR="$HOME/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen" \
-SCGAMEAPI_CHANNEL=PTU uv run scgameapi-dashboard
-```
-
-`SCGAMEAPI_EXE=<path to StarCitizen.exe>` overrides the schema source alone. Without an install (e.g. `--mock`), the newest cached schema in `.tmp/proto/` is used, so run the bridge once against a real install first.
+## Usage
 
 ### More commands
 
@@ -105,14 +60,16 @@ SCGAMEAPI_CHANNEL=PTU uv run scgameapi-dashboard
 uv run python scripts/telemetry_probe.py stream --n 3 --timeout 60
 uv run python scripts/telemetry_probe.py actions
 
-uv run scgameapi-dashboard --record             # also save frames to .tmp/recordings/*.jsonl
-uv run scgameapi-dashboard --replay .tmp/recordings/<file>.jsonl
-uv run scgameapi-dashboard --mock               # synthetic data (needs a cached schema)
-uv run scgameapi-dashboard --game-log PATH      # explicit Game.log; --no-game-log to disable
-uv run scgameapi-dashboard --alerts-audio browser   # play alert audio only in the dashboard tab
+uv run sctelemetry --record             # also save frames to .tmp/recordings/*.jsonl
+uv run sctelemetry --replay .tmp/recordings/<file>.jsonl
+uv run sctelemetry --mock               # synthetic data (needs a cached schema)
+uv run sctelemetry --game-log PATH      # explicit Game.log; --no-game-log to disable
+uv run sctelemetry --alerts-audio browser   # play alert audio only in the dashboard tab
 ```
 
 The schema and Python stubs are generated at runtime (`.tmp/proto/`, `.tmp/gen/`); nothing generated or CIG-derived is committed. Run from a clone with `uv run`: all state lives in the repo's `.tmp/`.
+
+> Renamed from `scgameapi` (2026-11-21). The old `scgameapi-dashboard` command and `SCGAMEAPI_*` environment variables still work for now, with a deprecation note on stderr; use `sctelemetry` and `SCTELEMETRY_*`.
 
 ### Alert audio
 
@@ -123,11 +80,11 @@ Audio plays in the newest dashboard tab with **Enable sound** clicked (WebAudio 
 | Windows | `winsound` (stdlib, WAV) | Windows SAPI via PowerShell; espeak-ng / piper if installed |
 | Linux | `pw-play` > `paplay` > `aplay` (WAV) > `ffplay` | piper > espeak-ng > espeak > spd-say |
 
-Bundled tones (`scgameapi/data/sounds/*.wav`, regenerate with `scripts/gen_tones.py`) are the fallback when the freedesktop sound theme is missing. See [alerts](docs/telemetry/alerts.md).
+Bundled tones (`sctelemetry/data/sounds/*.wav`, regenerate with `scripts/gen_tones.py`) are the fallback when the freedesktop sound theme is missing. See [alerts](docs/telemetry/alerts.md).
 
 ### Ship capabilities (optional)
 
-Mining / salvage / refuel gating uses a game-data export (`game-ships.json`, plus `game-salvage.json` beside it) produced by an sc-gamedata extractor (a separate tool, not part of this repo). Put it at `.tmp/gamedata/<channel>/game-ships.json` (e.g. `.tmp/gamedata/live/`) or point `--gamedata PATH` / `$SCGAMEAPI_GAMEDATA` at the file or its directory. Without it, capabilities are simply unknown and nothing is gated.
+Mining / salvage / refuel gating uses a game-data export (`game-ships.json`, plus `game-salvage.json` beside it) produced by an sc-gamedata extractor (a separate tool, not part of this repo). Put it at `.tmp/gamedata/<channel>/game-ships.json` (e.g. `.tmp/gamedata/live/`) or point `--gamedata PATH` / `$SCTELEMETRY_GAMEDATA` at the file or its directory. Without it, capabilities are simply unknown and nothing is gated.
 
 ### Tests
 
@@ -140,12 +97,7 @@ The dashboard JS tests need `node` on PATH and are skipped without it. The repla
 
 ### Troubleshooting
 
-- `Game.log` shows `gRPC telemetry service NOT running`: the env vars did not reach the game. On Windows, restart the RSI Launcher completely after `setx`; on Linux, export them in the script that starts Wine. Check the "Startup Settings" block for `[Env Var] GRPC_CLIENT_SERVER_ENABLED=true`.
-- Connected but no frames: `USER.cfg` lacks `server.game.telemetry.enabled = 1` (wrong channel folder?), or your character is not in the world yet.
-- `telemetry schema unavailable ... Searched: ...`: the install was not found; set `SC_DIR` (and `SCGAMEAPI_CHANNEL`) or `SCGAMEAPI_EXE`.
-- `[gamelog] ... not found`: same, for `Game.log`; the session panel stays empty until the game writes it.
-- Port in use: another bridge is running; pick `--port 8766`. The game's port is `GRPC_CLIENT_SERVER_PORT` (bridge `--grpc 127.0.0.1:<port>`).
-- No bridge sound: check the `[alerts] ... player ...` startup line, or use `--alerts-audio browser`.
+See the [troubleshooting table](docs/install.md#7-troubleshooting) in the install guide. Uninstall steps: [docs/install.md §8](docs/install.md#8-uninstall-or-disable).
 
 ## After a game patch
 
@@ -159,7 +111,7 @@ git diff docs/telemetry/api-reference.md   # the generated reference shows schem
 ## Layout
 
 ```
-scgameapi/    bridge server (FastAPI + gRPC aio), install discovery (paths.py), schema + stub loader,
+sctelemetry/  bridge server (FastAPI + gRPC aio), install discovery (paths.py), schema + stub loader,
               Game.log tailer, alerts, mock generator, static dashboard, data/ (JSON maps, bundled tones)
 scripts/      extract_protos.py, gen_api_spec.py, gen_tones.py, telemetry_probe.py, obsidian_frontmatter.py, run.sh, run.ps1
 tests/        pytest suite (synthetic fixtures only)
@@ -171,3 +123,20 @@ docs/         Obsidian-compatible vault (Home.md / README.md indexes)
 The API has **no authentication and no TLS**. Keep it bound to loopback, which is the default; never set `GRPC_CLIENT_SERVER_EXTERNAL`. With trigger actions enabled, any local process can send inputs to your game. The stream includes your aUEC balance. Recordings (`*.jsonl`) are gitignored for that reason, and the generated reference redacts it.
 
 Privacy: player handles from `Game.log` are shown only with `--show-names`; RSI org lookups only with `--lookup-orgs` (cached in `.tmp/rsi-cache.json`, mode 0600 on Linux; on Windows protected by your user-profile ACL). Server address and session ids are never written to recordings.
+
+Full threat model and how to report a vulnerability: [SECURITY.md](SECURITY.md).
+
+## Legal and disclaimer
+
+- **Unofficial.** sc-telemetry is a fan project. It is not affiliated with, endorsed, sponsored or approved by Cloud Imperium Games (CIG) or Roberts Space Industries. Star Citizen® is a registered trademark of Cloud Imperium Rights LLC.
+- **No game modification.** It uses only the game's own configuration switches (environment variables and `USER.cfg`). It modifies no game files, and does no memory reading, injection or hooking.
+- **Undocumented API.** The telemetry service is undocumented and may change or disappear with any patch.
+- **Trigger actions send real inputs to the game.** They are off unless you enable them in `USER.cfg`; use them at your own risk.
+- **Local-only by design.** The game service and the bridge listen on loopback with no authentication. Do not expose them to a network.
+- **No CIG data shipped.** No CIG schemas, `.proto` files or game data are in this repo; the schema is extracted at runtime from your own install.
+- **Network access is opt-in.** The bridge contacts `robertsspaceindustries.com` only when the RSI org lookup (`--lookup-orgs`) is enabled; nothing else leaves your machine.
+- Provided "as is", without warranty, under the [MIT License](LICENSE).
+
+## Contributing and license
+
+Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md) and the [changelog](docs/changelog.md). Licensed under the [MIT License](LICENSE).

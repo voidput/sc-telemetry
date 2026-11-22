@@ -10,9 +10,9 @@ import stat
 import pytest
 from fastapi.testclient import TestClient
 
-from scgameapi import gamelog as gl
-from scgameapi import people as P
-from scgameapi import server as srv
+from sctelemetry import gamelog as gl
+from sctelemetry import people as P
+from sctelemetry import server as srv
 
 from .test_gamelog import write
 
@@ -333,7 +333,9 @@ def test_fake_fetch_variants():
 
 
 def test_user_agent_has_no_personal_data():
-    assert P.USER_AGENT == "scgameapi/0.1 (local telemetry dashboard)"
+    from sctelemetry import __version__
+    assert P.USER_AGENT == f"sc-telemetry/{__version__} (local telemetry dashboard)"
+    assert __version__ != "0.0.0+unknown"  # installed metadata is found under the new dist name
 
 
 # ---- bridge API / snapshot privacy --------------------------------------------------------------------
@@ -389,7 +391,7 @@ def test_signals_view_adds_ship_info_but_recording_stays_plain(bridge, tmp_path)
     from .test_shipcaps import MINER, dataset
     from .test_shipcaps import write as wjson
     h, _ = bridge
-    from scgameapi import shipcaps as sc
+    from sctelemetry import shipcaps as sc
     miner = dict(MINER, manufacturer="rsi_2025", size=3, crewSize=2, totals={"cargoScu": 32})
     h.shipcaps = sc.ShipCaps([wjson(tmp_path / "game-ships.json", dataset(miner))], cache_path=None)
     h.signals = gl.SignalsState()

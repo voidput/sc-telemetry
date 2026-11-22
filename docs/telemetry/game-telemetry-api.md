@@ -14,7 +14,7 @@ updated: 2026-11-21
 
 `StarCitizen.exe` contains a gRPC server, `sc.game.telemetry.v1.GameTelemetryService`, hosted on a "local services server" inside the client. It streams live HUD/player/ship state and, in PTU 5.0, accepts allowlisted input actions. The schema was rebuilt from the `FileDescriptorProto`s embedded in the exe and compiles cleanly with `protoc`:
 
-- `sc/game/telemetry/v1/api.proto` and `types.proto`. Since 2026-11-21 they are extracted at runtime by [`scgameapi/schema.py`](../../scgameapi/schema.py) into `.tmp/proto/<branch>-<CL>/` and no longer committed. The tables in [api-reference.md](api-reference.md) show the full content.
+- `sc/game/telemetry/v1/api.proto` and `types.proto`. Since 2026-11-21 they are extracted at runtime by [`sctelemetry/schema.py`](../../sctelemetry/schema.py) into `.tmp/proto/<branch>-<CL>/` and no longer committed. The tables in [api-reference.md](api-reference.md) show the full content.
 
 After a patch, the next start re-extracts the schema automatically into a new per-build cache directory.
 

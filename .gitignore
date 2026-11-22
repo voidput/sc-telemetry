@@ -22,7 +22,7 @@ scratch/
 .env
 .env.*
 
-# CIG-derived schema: extracted at runtime from the installed game (scgameapi/schema.py), never committed
+# CIG-derived schema: extracted at runtime from the installed game (sctelemetry/schema.py), never committed
 proto/
 *.proto
 

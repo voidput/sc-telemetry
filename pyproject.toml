@@ -1,14 +1,24 @@
 [project]
-name = "scgameapi"
+name = "sc-telemetry"
 version = "0.1.0"
-description = "Client, docs and dashboard for Star Citizen's local Game Telemetry gRPC API (unofficial)"
+description = "sc-telemetry: local bridge, docs and dashboard for Star Citizen's Game Telemetry gRPC API (unofficial)"
 readme = "README.md"
 requires-python = ">=3.13"
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["star-citizen", "telemetry", "grpc", "dashboard", "fastapi", "sse", "game-log"]
 classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Web Environment",
+    "Framework :: FastAPI",
+    "Intended Audience :: End Users/Desktop",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.13",
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",
-    "Private :: Do Not Upload",
+    "Topic :: Games/Entertainment",
+    "Topic :: System :: Monitoring",
 ]
 dependencies = [
     "fastapi>=0.165.0",
@@ -18,15 +28,22 @@ dependencies = [
     "uvicorn[standard]>=0.54.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/voidput/sc-telemetry"
+Repository = "https://github.com/voidput/sc-telemetry"
+Issues = "https://github.com/voidput/sc-telemetry/issues"
+
 [project.scripts]
-scgameapi-dashboard = "scgameapi.server:main"
+sctelemetry = "sctelemetry.server:main"
+# deprecated alias from before the rename (prints a note on stderr); remove in a future release
+scgameapi-dashboard = "sctelemetry.server:main_deprecated_alias"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["scgameapi"]
+packages = ["sctelemetry"]
 
 [dependency-groups]
 dev = [

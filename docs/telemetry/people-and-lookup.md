@@ -6,7 +6,7 @@ updated: 2026-11-21
 
 # People and org lookup
 
-The dashboard's **People** panel lists players whose handles appear in Game.log, grouped by how they relate to you. An opt-in lookup adds each handle's main org from the public RSI citizen page. Code: `scgameapi/people.py`; API: [api-spec.md §8.7](api-spec.md#87-people-and-org-lookup).
+The dashboard's **People** panel lists players whose handles appear in Game.log, grouped by how they relate to you. An opt-in lookup adds each handle's main org from the public RSI citizen page. Code: `sctelemetry/people.py`; API: [api-spec.md §8.7](api-spec.md#87-people-and-org-lookup).
 
 **Privacy rule for this note:** templates only (`<player>`, `<id>`). No real handle, org or id appears here.
 
@@ -14,8 +14,8 @@ The dashboard's **People** panel lists players whose handles appear in Game.log,
 
 | Toggle | Default | Start value | Runtime | Effect |
 |---|---|---|---|---|
-| **Show names** | off | `--show-names` / `SCGAMEAPI_SHOW_NAMES=1` | `PUT /api/people/settings {"show_names": bool}` | Handles appear in `/api/people` and the same-origin snapshot. Off: counts only. |
-| **Look up orgs** | off | `--lookup-orgs` / `SCGAMEAPI_LOOKUP_ORGS=1` | `PUT /api/people/settings {"lookup_orgs": bool}` | The bridge fetches citizen pages for the listed handles. It only fetches while **both** toggles are on. Off: no request is ever sent; handles stay plain links. |
+| **Show names** | off | `--show-names` / `SCTELEMETRY_SHOW_NAMES=1` | `PUT /api/people/settings {"show_names": bool}` | Handles appear in `/api/people` and the same-origin snapshot. Off: counts only. |
+| **Look up orgs** | off | `--lookup-orgs` / `SCTELEMETRY_LOOKUP_ORGS=1` | `PUT /api/people/settings {"lookup_orgs": bool}` | The bridge fetches citizen pages for the listed handles. It only fetches while **both** toggles are on. Off: no request is ever sent; handles stay plain links. |
 
 Runtime changes are not persisted; a restart goes back to the CLI/env values. Every handle with a valid RSI charset (`[A-Za-z0-9_-]`) is a link to `https://robertsspaceindustries.com/citizens/<handle>`, opened in **your** browser (`noopener noreferrer`), whatever the lookup toggle says. Names with spaces (some party toasts) are shown but never linked or looked up.
 
@@ -41,7 +41,7 @@ Runtime changes are not persisted; a restart goes back to the CLI/env values. Ev
 ## Org lookup
 
 - Pages: `/citizens/<handle>` (moniker, enlisted date, main org name + SID + rank + visibility) then `/citizens/<handle>/organizations` (affiliation count). Parsed with stdlib `html.parser` / regex; no new dependency, no JavaScript.
-- Politeness: one request in flight, ≥ 3 s between requests, 10 s timeout, `User-Agent: scgameapi/0.1 (local telemetry dashboard)` with no personal data. Lookup order: you, then crew → party → party? → nearby, most recent first.
+- Politeness: one request in flight, ≥ 3 s between requests, 10 s timeout, `User-Agent: sc-telemetry/<version> (local telemetry dashboard)` with no personal data. Lookup order: you, then crew → party → party? → nearby, most recent first.
 - Failure handling: 404 → `not_found` (cached 1 day); 403/429/503 → paused 60 s, doubling to 15 min (shown in the panel as "RSI lookups paused"); other errors, a timeout, an unrecognised page (layout change, challenge page) or a page for a different handle → `error`, retried after 1 h; 3 such errors in a row pause all lookups like a 429 ("paused (3 failed lookups in a row ...)"), reset by the next ok/404. A profile whose organizations tab was not read (toggle off mid-lookup, error, block) is kept as `partial` for 1 h only, then retried. The panel shows the last status.
 - Robustness: parsing runs in a worker thread; pages deeper than 400 open elements or with more than 500 entries count as unrecognised; parsed fields are cut to 100 characters.
 - `--mock` always uses the offline fake fetcher: its synthetic handles never reach RSI.

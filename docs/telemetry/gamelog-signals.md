@@ -29,7 +29,7 @@ updated: 2026-11-21
 - Anything about your locked or selected target, contacts, radar returns, ping results or scan results.
 
 ## Implemented
-The bridge's Game.log tailer (`scgameapi/gamelog.py`: `parse_signal`, `classify_zone`, `SignalsState`) turns these lines into state and events. The HTTP side is documented in [api-spec.md §8.4](api-spec.md).
+The bridge's Game.log tailer (`sctelemetry/gamelog.py`: `parse_signal`, `classify_zone`, `SignalsState`) turns these lines into state and events. The HTTP side is documented in [api-spec.md §8.4](api-spec.md).
 
 - **Nearby ships.** `Local Route Guard - <any> ... | NOT <AUTH|INIT> | <CLASS>_<id>[<id>]|CSCItemNavigation::PostInitialize`. De-duplicated per entity id *inside the bridge*; exposed as `{class, display, count, first_seen, last_seen}` per class (most recently seen first, at most 50 classes; at most 1000 entities remembered). Event `NEARBY_SHIP` on first sighting only, at most one per second: a burst (including the initial full read) becomes one event, "N new ships: A, B, C…".
 - **Own ship.** Every entity named in a `Vehicle Control Flow ... releasing control token for '<CLASS>_<id>'` line this session, plus the telemetry `vehicle.state.name` (`<CLASS>_<id>`), is yours: excluded from nearby (also retroactively, and still after you switch ships) and shown as `own_ship`. `own_ship` comes from whichever source changed most recently (a new telemetry vehicle or a later seat release). The UI mutes the zone badge and Nearby panel while the session is idle (Game.log not written for 2 min and no telemetry). A reclaimed ship gets a new entity id, so it can show up as nearby until you fly it.

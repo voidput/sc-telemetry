@@ -24,7 +24,7 @@ updated: 2026-11-21
 | Default bind | `127.0.0.1:<port>`, loopback only. `0.0.0.0` when `grpc-client-server-external=true`. |
 | Port | Set with `GRPC_CLIENT_SERVER_PORT` (1024–65535). The default is unknown, so always set it. |
 | Package / service | `sc.game.telemetry.v1.GameTelemetryService` |
-| Schema | `sc/game/telemetry/v1/{api,types}.proto` (proto3). It is extracted at runtime from the `FileDescriptorProto`s embedded in the user's `StarCitizen.exe` and cached per build (`scgameapi/schema.py`). It is not committed. |
+| Schema | `sc/game/telemetry/v1/{api,types}.proto` (proto3). It is extracted at runtime from the `FileDescriptorProto`s embedded in the user's `StarCitizen.exe` and cached per build (`sctelemetry/schema.py`). It is not committed. |
 | Reflection | Not verified. Use the local `.proto` files. |
 | Host process | `StarCitizen.exe`, which hosts the "local services server" (`CGameTelemetryServer`). Team `GameServices`, tag `[Haptic]`. |
 
@@ -200,7 +200,7 @@ Units, scales and observed ranges for every field are in [api-reference.md](api-
 | `uec_balance` | int64, so it is a **string** in JSON. |
 | `name`, `seat_name`, weapon `name` | Include a trailing entity id (`_000000000001`). Strip it with `_\d{9,}$`. |
 | `manufacturer`, `preset_name` | Empty strings in 5.0. |
-| `shields.faces` | **Variable length = the ship's shield face layout**, not the generator count: 1 = bubble (MISC Prospector, which has 3 generators), 4 = quadrants (RSI Perseus, which has 2 generators). Front/back (2) and possibly 6-face ships exist. Face order is undocumented; a hit-direction test is pending. **Tuning is visible:** at full charge each face reads its tuning share ÷ 100% clamped to 1.0 (Paladin tuned Front 60 / Left 220 / Right 60 / Back 60 → `[0.6, 0.6, 1.0, 0.6]`), so on 4-face ships **index 2 = LEFT** (verified). A single boosted face's share = 4 − sum(others). A boosted face hides damage until it falls below 100%. See `scgameapi/data/shield_faces.json`. |
+| `shields.faces` | **Variable length = the ship's shield face layout**, not the generator count: 1 = bubble (MISC Prospector, which has 3 generators), 4 = quadrants (RSI Perseus, which has 2 generators). Front/back (2) and possibly 6-face ships exist. Face order is undocumented; a hit-direction test is pending. **Tuning is visible:** at full charge each face reads its tuning share ÷ 100% clamped to 1.0 (Paladin tuned Front 60 / Left 220 / Right 60 / Back 60 → `[0.6, 0.6, 1.0, 0.6]`), so on 4-face ships **index 2 = LEFT** (verified). A single boosted face's share = 4 − sum(others). A boosted face hides damage until it falls below 100%. See `sctelemetry/data/shield_faces.json`. |
 | Enums | Strings in JSON. `*_UNSPECIFIED` (0) means "not reported", and proto3 JSON leaves it out unless you print default values. |
 | Optional sub-messages | `doors`, `annunciators`, `flight`, `power`, `shields`, `master_mode`, `g_meter`, `gear`/`vtol`/`transformation` are proto3 `optional`. Absent means the vehicle doesn't have it. |
 | Power | On/off per subsystem only. **No pip or allocation data.** |
@@ -231,7 +231,7 @@ grpcurl -plaintext -import-path proto -proto sc/game/telemetry/v1/api.proto \
 **Minimal Python async client:**
 ```python
 import asyncio, grpc
-from scgameapi import stubs
+from sctelemetry import stubs
 api, apig, _ = stubs.load()
 
 async def main():
@@ -271,9 +271,9 @@ To compare two builds directly, run `diff -r .tmp/proto/<old-key> .tmp/proto/<ne
 
 ---
 
-## 8. Bridge HTTP API (`scgameapi.server`)
+## 8. Bridge HTTP API (`sctelemetry.server`)
 
-The dashboard bridge (`uv run python -m scgameapi.server`) turns the gRPC API into plain HTTP on `127.0.0.1:8765` by default. Modes: `--grpc HOST:PORT` (default `127.0.0.1:50051`, the live game), `--mock` (synthetic frames), `--replay FILE.jsonl` (loops a `--record` capture). In `--mock` and `--replay` modes every trigger goes to a **fake backend**, so nothing reaches the game.
+The dashboard bridge (`uv run python -m sctelemetry.server`) turns the gRPC API into plain HTTP on `127.0.0.1:8765` by default. Modes: `--grpc HOST:PORT` (default `127.0.0.1:50051`, the live game), `--mock` (synthetic frames), `--replay FILE.jsonl` (loops a `--record` capture). In `--mock` and `--replay` modes every trigger goes to a **fake backend**, so nothing reaches the game.
 
 | Endpoint | Method | Returns |
 |---|---|---|
@@ -285,8 +285,8 @@ The dashboard bridge (`uv run python -m scgameapi.server`) turns the gRPC API in
 | `/api/history` | GET | `{interval_s: 0.25, t: [...], series: {speed, g, heart_rate, shield, boost, vsi, hydrogen, hull}}`, a 180 s ring at 4 Hz |
 | `/api/actions` | GET | the normalised trigger allowlist (below) |
 | `/api/trigger` | POST | presses one game action (below) |
-| `/api/action-states` | GET | the action → telemetry state map, verbatim from `scgameapi/data/action_state_map.json` ([§8.5](#85-action-state-map-ship-capabilities-shield-faces)); 500 `{status: "ERROR", message}` if the file is missing or invalid |
-| `/api/shield-faces` | GET | shield face layout metadata by `faces[]` length, verbatim from `scgameapi/data/shield_faces.json` (§8.5); 500 when missing |
+| `/api/action-states` | GET | the action → telemetry state map, verbatim from `sctelemetry/data/action_state_map.json` ([§8.5](#85-action-state-map-ship-capabilities-shield-faces)); 500 `{status: "ERROR", message}` if the file is missing or invalid |
+| `/api/shield-faces` | GET | shield face layout metadata by `faces[]` length, verbatim from `sctelemetry/data/shield_faces.json` (§8.5); 500 when missing |
 | `/api/ship` | GET | `{class, capabilities, gamedata}` for the current vehicle (§8.5) |
 | `/api/alerts` | GET | `{recent[], rules[], audio, config}`: last 50 alerts, rules summary, audio routing state (§8.6) |
 | `/api/alerts/rules` | GET / PUT | full rule list; PUT validates, applies and saves the diff to the user rules file (guarded) |
@@ -362,13 +362,13 @@ curl -s -X POST -H 'Content-Type: application/json' \
 
 ### 8.3 Session data (Game.log)
 
-The gRPC API carries no location or server data (§4), so the bridge follows the game's own `Game.log` (`scgameapi/gamelog.py`). The log is opened **read-only**; nothing is ever written, truncated or rotated.
+The gRPC API carries no location or server data (§4), so the bridge follows the game's own `Game.log` (`sctelemetry/gamelog.py`). The log is opened **read-only**; nothing is ever written, truncated or rotated.
 
 | Flag | Effect |
 |---|---|
 | `--game-log PATH` | follow this file |
-| `--channel PTU\|LIVE\|HOTFIX\|EPTU\|TECH-PREVIEW` | default path `<--sc-dir>/<CHANNEL>/Game.log`; default `$SCGAMEAPI_CHANNEL`, else the channel whose Game.log was written last, else `LIVE`. The schema uses the same channel. |
-| `--sc-dir DIR` | install dir (holds `LIVE/`, `PTU/` ...); default `$SC_DIR`, else auto-detected per OS (`scgameapi/paths.py`, order in the README). The schema uses the same dir. |
+| `--channel PTU\|LIVE\|HOTFIX\|EPTU\|TECH-PREVIEW` | default path `<--sc-dir>/<CHANNEL>/Game.log`; default `$SCTELEMETRY_CHANNEL`, else the channel whose Game.log was written last, else `LIVE`. The schema uses the same channel. |
+| `--sc-dir DIR` | install dir (holds `LIVE/`, `PTU/` ...); default `$SC_DIR`, else auto-detected per OS (`sctelemetry/paths.py`, order in the README). The schema uses the same dir. |
 | `--no-game-log` | disable; `session` is `null` |
 
 Per mode: grpc uses `--game-log` or the channel default; `--mock` always serves a synthetic session (`mock_use1b_0_001`, `Stanton`, TEST-NET address); `--replay` reads a Game.log only when `--game-log` is given, else `session` is `null`.
@@ -399,7 +399,7 @@ Timestamps (`joined_at`, `log_started_at`) are the log's own ISO-8601 UTC string
 
 **Privacy.** `server_address`, `server_port`, `session_id` and `env_session` never appear in `/events`, `/api/snapshot` or `/api/session`; only `GET /api/session/private` returns them, behind the `/api/trigger` Host/Origin check (blocks DNS rebinding and other hosts; with `--host 0.0.0.0` only `localhost`/`127.0.0.1` pass). The dashboard fetches it only while a Reveal button is on. `--record` writes `{"t", "session"}` records with those four fields stripped (`gamelog.public()`), skipping identical consecutive sessions and the pre-first-poll placeholder; replay skips these records.
 
-**Robustness.** The tailer's poll (open/fstat/read/parse) runs in a worker thread (`asyncio.to_thread`); `on_change` is dispatched back onto the event loop. Rotation uses `fstat` of the opened handle. A failing poll or consumer callback is logged and tailing continues; a Game.log failure never changes the telemetry `status`. An unknown `$SCGAMEAPI_CHANNEL` is rejected at startup.
+**Robustness.** The tailer's poll (open/fstat/read/parse) runs in a worker thread (`asyncio.to_thread`); `on_change` is dispatched back onto the event loop. Rotation uses `fstat` of the opened handle. A failing poll or consumer callback is logged and tailing continues; a Game.log failure never changes the telemetry `status`. An unknown `$SCTELEMETRY_CHANNEL` is rejected at startup.
 
 ### 8.4 Game.log signals (zone, nearby ships)
 
@@ -438,9 +438,9 @@ Parsed from unofficial debug lines in the same Game.log (formats and caveats: [g
 
 ### 8.5 Action state map, ship capabilities, shield faces
 
-Data for showing live state **on** action buttons (dashboard Controls panel; a planned OpenDeck plugin would consume the same endpoints). Rendering state never sends an action.
+Data for showing live state **on** action buttons (dashboard Controls panel; other clients such as a hardware button panel can consume the same endpoints). Rendering state never sends an action.
 
-**`GET /api/action-states`** serves `scgameapi/data/action_state_map.json` unchanged (read once per bridge process, then cached). It maps each triggerable action to the telemetry field that shows its state: `groups[]` of `{id, path | path_by_master, alt_path?, kind, labels?, prefix?, on?, invert?, sub?, absent_label?, actions: {name: toggle|on|off|cycle|show|{active_when}}, verified, known_issue?, note?}`, plus `stateless[]` (with `emote_*` globs) and `semantics`. Full semantics and rendering rules: [action-state-map.md](action-state-map.md).
+**`GET /api/action-states`** serves `sctelemetry/data/action_state_map.json` unchanged (read once per bridge process, then cached). It maps each triggerable action to the telemetry field that shows its state: `groups[]` of `{id, path | path_by_master, alt_path?, kind, labels?, prefix?, on?, invert?, sub?, absent_label?, actions: {name: toggle|on|off|cycle|show|{active_when}}, verified, known_issue?, note?}`, plus `stateless[]` (with `emote_*` globs) and `semantics`. Full semantics and rendering rules: [action-state-map.md](action-state-map.md).
 
 **`snapshot.capabilities` / `GET /api/ship` / `GET /api/ships?class=X`** — what the current ship can do, from game data (not telemetry: the game answers `OK` to `v_set_mining_mode` / `_salvage_mode` / `_refuel_mode` even on ships without the hardware, and `weapons[]` lists only guns):
 ```json
@@ -452,12 +452,12 @@ Data for showing live state **on** action buttons (dashboard Controls panel; a p
 ```
 - `null` when there is no vehicle or the class is not in the dataset (no gating; the dashboard shows `?`). `/api/ship` and `/api/ships` add `gamedata: {loaded, source, source_build, ships, error}`.
 - `source` (both places) is a short label `<parent dir>/<file>` (e.g. `ptu/game-ships.json`, `live/game-ships.json`), never the absolute path; `error` names files the same way. The full path appears only in the bridge's stderr log.
-- Source: sc-gamedata `game-ships.json` (+ `game-salvage.json` beside it). Priority: `--gamedata PATH` / `$SCGAMEAPI_GAMEDATA` (file or directory) → `.tmp/gamedata/<channel>/game-ships.json`. The dataset is optional and comes from a separate sc-gamedata extractor (not part of this repo). The derived table is cached in `.tmp/ship-capabilities.json` keyed by source path/mtime/size/build, and reloaded when the source mtime changes (checked at most every 5 s). A missing or half-written dataset only disables gating.
+- Source: sc-gamedata `game-ships.json` (+ `game-salvage.json` beside it). Priority: `--gamedata PATH` / `$SCTELEMETRY_GAMEDATA` (file or directory) → `.tmp/gamedata/<channel>/game-ships.json`. The dataset is optional and comes from a separate sc-gamedata extractor (not part of this repo). The derived table is cached in `.tmp/ship-capabilities.json` keyed by source path/mtime/size/build, and reloaded when the source mtime changes (checked at most every 5 s). A missing or half-written dataset only disables gating.
 - Key: `recordName` `EntityClassDefinition.<CLASS>`, where `<CLASS>` equals telemetry `vehicle.state.class_name`. Variants sharing a class are OR-merged.
-- Derivation (`scgameapi/shipcaps.py`, default loadout): `mining` = any `WeaponMining` or role contains "Mining"; `salvage` = role contains "Salvage" or the salvage dataset lists the class (current datasets list none); `refuel` = role contains "Refuel"; `tractor` = `TractorBeam`; `guns` = `WeaponGun` or turrets; `scan` = radars; `quantum` = quantumDrives; `qed` = quantumEnforcement; `emp` = `EMP`; `missiles` = missileRacks; `cargo` (bool) = `totals.cargoScu` > 0 or cargoGrids exist; `cargo_scu` (number | null) = `totals.cargoScu` when present. `cargo: false` means "not in the dataset", not "carries none" (the dashboard shows `?`). Display only, never gates.
+- Derivation (`sctelemetry/shipcaps.py`, default loadout): `mining` = any `WeaponMining` or role contains "Mining"; `salvage` = role contains "Salvage" or the salvage dataset lists the class (current datasets list none); `refuel` = role contains "Refuel"; `tractor` = `TractorBeam`; `guns` = `WeaponGun` or turrets; `scan` = radars; `quantum` = quantumDrives; `qed` = quantumEnforcement; `emp` = `EMP`; `missiles` = missileRacks; `cargo` (bool) = `totals.cargoScu` > 0 or cargoGrids exist; `cargo_scu` (number | null) = `totals.cargoScu` when present. `cargo: false` means "not in the dataset", not "carries none" (the dashboard shows `?`). Display only, never gates.
 - Gating reach: only `mining`, `salvage` and `refuel` gate in practice. `guns` follows the rule above, so mining ships with turrets or default-loadout repeaters (e.g. Prospector: `WeaponMining` + 2× `WeaponGun`) report `guns: true` and `v_set_guns_mode` is effectively never gated; `scan` / `quantum` are true for nearly every ship. Tightening `guns` to `WeaponGun` only is a possible later change.
 
-**`GET /api/shield-faces`** serves `scgameapi/data/shield_faces.json`: `{by_count: {"1": {layout: "bubble", labels: ["ALL"], ring: [0]}, "2": {layout: "front_back"}, "4": {layout: "quadrant"}, "6": {layout: "quadrant_top_bottom", ring: [0,1,2,3], pips: [4,5]}}, overrides_by_class: {}}`. `vehicle.state.shields.faces` has a variable length equal to the ship's shield face layout, not its generator count (verified: MISC_Prospector 1 = bubble, RSI_Perseus 4). Face order is unverified, so labels stay `F1..Fn`. Any other count renders as N equal ring segments. A face ≤ 0 while the overall level is > 0 is shown as `DOWN`.
+**`GET /api/shield-faces`** serves `sctelemetry/data/shield_faces.json`: `{by_count: {"1": {layout: "bubble", labels: ["ALL"], ring: [0]}, "2": {layout: "front_back"}, "4": {layout: "quadrant"}, "6": {layout: "quadrant_top_bottom", ring: [0,1,2,3], pips: [4,5]}}, overrides_by_class: {}}`. `vehicle.state.shields.faces` has a variable length equal to the ship's shield face layout, not its generator count (verified: MISC_Prospector 1 = bubble, RSI_Perseus 4). Face order is unverified, so labels stay `F1..Fn`. Any other count renders as N equal ring segments. A face ≤ 0 while the overall level is > 0 is shown as `DOWN`.
 
 **`--mock` fake triggers** flip mock state for `v_lights*`, the landing-gear trio and the shield-power trio, so on-button state can be exercised without the game. Hidden test switch `--fake-fail REGEX` (fake backend only) answers `FAILED` for matching action names, to exercise the dashboard's `UNSUPPORTED` path for `known_issue` groups; the dashboard's Refresh button clears this session's `UNSUPPORTED` verdicts.
 
@@ -477,17 +477,17 @@ Rule engine, routing and TTS setup: [alerts.md](alerts.md). Every alert is `{id,
   - `last`
 - **`PUT /api/alerts/rules`** takes `{rules: [...]}`, the full list as `GET /api/alerts/rules` returns it. Default ids left out of the list are dropped and saved as `removed`, so they stay dropped after a restart. A field set to `null` unsets it on a default rule. The user file's `settings` are kept.
   - `400 {status: "INVALID", message}` lists the validation errors, and nothing is written.
-  - `200 {status: "OK", rules: N, user_file}` means the change is saved. The write is atomic, and the file stores only fields that differ from `scgameapi/data/alerts.default.json` plus new rules.
+  - `200 {status: "OK", rules: N, user_file}` means the change is saved. The write is atomic, and the file stores only fields that differ from `sctelemetry/data/alerts.default.json` plus new rules.
 - **Guards.** All mutating alert endpoints use the `/api/trigger` Host/Origin guard (403). They require `Content-Type: application/json` (415) and a JSON object body (400). The body limit is 1 KiB, or 64 KiB for rules (413). They return 503 when alerts failed to start.
 - **CLI / env.**
-  - `--alerts PATH` / `$SCGAMEAPI_ALERTS`: user rules patch. Default `.tmp/alerts.json`.
-  - `--alerts-audio MODE` / `$SCGAMEAPI_ALERTS_AUDIO`
-  - `--alerts-dry-run` / `$SCGAMEAPI_ALERTS_DRY_RUN=1`: log what would play, start nothing.
-  - `$SCGAMEAPI_PIPER_VOICE`: piper voice model.
+  - `--alerts PATH` / `$SCTELEMETRY_ALERTS`: user rules patch. Default `.tmp/alerts.json`.
+  - `--alerts-audio MODE` / `$SCTELEMETRY_ALERTS_AUDIO`
+  - `--alerts-dry-run` / `$SCTELEMETRY_ALERTS_DRY_RUN=1`: log what would play, start nothing.
+  - `$SCTELEMETRY_PIPER_VOICE`: piper voice model.
 
 ### 8.7 People and org lookup
 
-Players named in Game.log (crew, party, nearby) plus an opt-in RSI org lookup. Sources, privacy model and cache: [people-and-lookup.md](people-and-lookup.md). Both toggles are **off by default**: `--show-names` / `$SCGAMEAPI_SHOW_NAMES=1`, `--lookup-orgs` / `$SCGAMEAPI_LOOKUP_ORGS=1`, or `PUT /api/people/settings` at runtime.
+Players named in Game.log (crew, party, nearby) plus an opt-in RSI org lookup. Sources, privacy model and cache: [people-and-lookup.md](people-and-lookup.md). Both toggles are **off by default**: `--show-names` / `$SCTELEMETRY_SHOW_NAMES=1`, `--lookup-orgs` / `$SCTELEMETRY_LOOKUP_ORGS=1`, or `PUT /api/people/settings` at runtime.
 
 **`snapshot.people` / `GET /api/people` → `people`** (`null` when Game.log is disabled)
 ```json

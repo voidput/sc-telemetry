@@ -473,7 +473,7 @@ class GameLogTailer:
         self.state = SessionState(channel)
         self.signals = SignalsState()  # nearby ships / zone / QT / corpse, reset with the session
         self._sig_ver = None
-        self.people = people.PeopleState()  # handles seen this session (memory only; scgameapi/people.py)
+        self.people = people.PeopleState()  # handles seen this session (memory only; sctelemetry/people.py)
         self._ppl_ver = None
         self.on_change = on_change  # callable(session_dict, events) after a poll that changed anything
         self.poll_s = poll_s

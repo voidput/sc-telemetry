@@ -5,7 +5,7 @@ import re
 
 import pytest
 
-from scgameapi import gamelog as gl
+from sctelemetry import gamelog as gl
 
 from .test_gamelog import LINES, write
 

@@ -1,5 +1,5 @@
 {
- "$comment": "Maps triggerable action names to the telemetry field that reflects their state. Paths are dotted into the proto3-JSON frame (snake_case). kind: bool | enum | availability | annunciator | value; invert flips bool meaning. Shared source of truth for the dashboard Controls panel and the OpenDeck plugin. verified=true means the field was observed changing in real recordings. The action-to-field link itself was only confirmed live for v_lights (2026-11-21); the rest are inferred from names.",
+ "$comment": "Maps triggerable action names to the telemetry field that reflects their state. Paths are dotted into the proto3-JSON frame (snake_case). kind: bool | enum | availability | annunciator | value; invert flips bool meaning. Shared source of truth for the dashboard Controls panel and any other client. verified=true means the field was observed changing in real recordings. The action-to-field link itself was only confirmed live for v_lights (2026-11-21); the rest are inferred from names.",
  "version": 1,
  "groups": [
   {

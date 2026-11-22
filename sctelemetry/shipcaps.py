@@ -6,7 +6,7 @@ datasets an sc-gamedata export of the installed game produces (`game-ships.json`
 without a dataset, capability gating is simply off.
 
 Source priority (first existing file wins), per channel:
-  --gamedata PATH / $SCGAMEAPI_GAMEDATA (file or directory)
+  --gamedata PATH / $SCTELEMETRY_GAMEDATA (file or directory)
   <repo>/.tmp/gamedata/<channel>/game-ships.json   (e.g. .tmp/gamedata/live/ or ptu/)
 The derived table is cached in <repo>/.tmp/ship-capabilities.json keyed by source path/mtime/size/build
 and reloaded when the source file's mtime changes. Pure functions below; ShipCaps holds the state.
@@ -19,7 +19,7 @@ import os
 import pathlib
 import time
 
-from . import stubs
+from . import envcompat, stubs
 
 CAPS = ("mining", "salvage", "refuel", "tractor", "guns", "scan", "quantum", "qed", "emp", "missiles", "cargo")
 # not a capability flag: cargo_scu is a number | None riding alongside the booleans in `caps`
@@ -292,4 +292,4 @@ class ShipCaps:
 
 
 def default(channel: str = "PTU", override=None) -> ShipCaps:
-    return ShipCaps(candidates(channel, override or os.environ.get("SCGAMEAPI_GAMEDATA") or None))
+    return ShipCaps(candidates(channel, override or envcompat.getenv("GAMEDATA") or None))

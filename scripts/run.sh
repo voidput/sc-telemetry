@@ -4,4 +4,4 @@
 #   SC_DIR="$HOME/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen" scripts/run.sh
 set -eu
 cd "$(dirname "$0")/.."
-exec uv run scgameapi-dashboard "$@"
+exec uv run sctelemetry "$@"

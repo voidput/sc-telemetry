@@ -2,10 +2,10 @@
 StarCitizen.exe and cache them per game build. No CIG-derived files are shipped in this repo.
 
 Resolution order (first hit wins):
-  1. SCGAMEAPI_PROTO_DIR  - an explicit directory of .proto files (dev override)
-  2. SCGAMEAPI_EXE        - extract from this exe (cache key: size+mtime)
+  1. SCTELEMETRY_PROTO_DIR  - an explicit directory of .proto files (dev override)
+  2. SCTELEMETRY_EXE        - extract from this exe (cache key: size+mtime)
   3. install dir + channel -> <SC_DIR>/<CHANNEL>/Bin64/StarCitizen.exe. Install dir: $SC_DIR, else
-     auto-detected (scgameapi/paths.py); channel: $SCGAMEAPI_CHANNEL, else the last-played one, else LIVE
+     auto-detected (sctelemetry/paths.py); channel: $SCTELEMETRY_CHANNEL, else the last-played one, else LIVE
      (cache key: Branch-RequestedP4ChangeNum from <channel>/build_manifest.id)
   4. newest existing cache under .tmp/proto/ (so --mock/--replay work without the game installed)
 """
@@ -17,7 +17,7 @@ import sys
 
 from google.protobuf import descriptor_pb2 as d
 
-from . import paths
+from . import envcompat, paths
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CACHE = ROOT / ".tmp" / "proto"
@@ -215,13 +215,13 @@ def _ensure(exe, key, log):
 
 def resolve(log=lambda m: print(m, file=sys.stderr)):
     """Return a directory containing sc/game/telemetry/v1/*.proto for the selected build."""
-    if os.environ.get("SCGAMEAPI_PROTO_DIR"):
-        p = pathlib.Path(os.environ["SCGAMEAPI_PROTO_DIR"])
+    if proto_dir := envcompat.getenv("PROTO_DIR"):
+        p = pathlib.Path(proto_dir)
         if (p / MARKER).exists():
             return p
-        raise RuntimeError(f"SCGAMEAPI_PROTO_DIR={p} has no {MARKER}")
-    if os.environ.get("SCGAMEAPI_EXE"):
-        exe = pathlib.Path(os.environ["SCGAMEAPI_EXE"])
+        raise RuntimeError(f"SCTELEMETRY_PROTO_DIR={p} has no {MARKER}")
+    if exe_env := envcompat.getenv("EXE"):
+        exe = pathlib.Path(exe_env)
         return _ensure(exe, _exe_key(exe), log)
     sc_dir = paths.find_sc_dir()
     channel = paths.default_channel(sc_dir)
@@ -235,4 +235,4 @@ def resolve(log=lambda m: print(m, file=sys.stderr)):
         return cached[0]
     raise RuntimeError(f"telemetry schema unavailable: {what} not found and no cache in {CACHE}. "
                        f"Searched: {paths.describe_search()}. Set SC_DIR (install dir holding LIVE/PTU) "
-                       "and/or SCGAMEAPI_CHANNEL, or SCGAMEAPI_EXE=<path to StarCitizen.exe>.")
+                       "and/or SCTELEMETRY_CHANNEL, or SCTELEMETRY_EXE=<path to StarCitizen.exe>.")

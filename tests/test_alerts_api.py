@@ -4,13 +4,13 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from scgameapi import alerts as A
-from scgameapi import server as srv
+from sctelemetry import alerts as A
+from sctelemetry import server as srv
 
 from .test_alerts import BOOST, frame
 
 BAD_HEADERS = ({"host": "evil.example:8766"}, {"host": "127.0.0.1:8766", "origin": "http://evil.example:8766"},
-               {"host": "192.168.1.5:8766"})
+               {"host": "192.0.2.5:8766"})
 
 
 @pytest.fixture
@@ -201,7 +201,7 @@ def test_endpoints_503_without_service(monkeypatch):
 def test_bad_env_audio_mode_rejected(monkeypatch, capsys):
     import argparse
     monkeypatch.setattr(srv, "CFG", argparse.Namespace())  # argparse keeps attributes already on CFG
-    monkeypatch.setenv("SCGAMEAPI_ALERTS_AUDIO", "loud")
+    monkeypatch.setenv("SCTELEMETRY_ALERTS_AUDIO", "loud")
     monkeypatch.setattr("sys.argv", ["server"])
     monkeypatch.setattr(srv.uvicorn, "run", lambda *a, **k: pytest.fail("must not start"))
     with pytest.raises(SystemExit) as e:

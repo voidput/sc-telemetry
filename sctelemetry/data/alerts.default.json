@@ -1,5 +1,5 @@
 {
- "$comment": "Default alert rules for scgameapi.alerts (docs/telemetry/alerts.md). A user file (--alerts PATH, $SCGAMEAPI_ALERTS, else .tmp/alerts.json) patches these by id: {\"rules\": [{\"id\": \"boost_low\", \"enabled\": false}, ...]} or adds new ids. sounds: first existing file the bridge player can decode wins; relative paths resolve against scgameapi/data/ (bundled WAV tones, used on Windows/macOS and where the freedesktop sound theme is missing). verified=false: the rule's data source never changed in a recording, so the trigger is a reasonable guess, not observed behaviour.",
+ "$comment": "Default alert rules for sctelemetry.alerts (docs/telemetry/alerts.md). A user file (--alerts PATH, $SCTELEMETRY_ALERTS, else .tmp/alerts.json) patches these by id: {\"rules\": [{\"id\": \"boost_low\", \"enabled\": false}, ...]} or adds new ids. sounds: first existing file the bridge player can decode wins; relative paths resolve against sctelemetry/data/ (bundled WAV tones, used on Windows/macOS and where the freedesktop sound theme is missing). verified=false: the rule's data source never changed in a recording, so the trigger is a reasonable guess, not observed behaviour.",
  "version": 1,
  "settings": {
   "speech": false,

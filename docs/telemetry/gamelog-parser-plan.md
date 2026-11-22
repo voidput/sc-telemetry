@@ -8,7 +8,7 @@ updated: 2026-11-21
 
 **Status:** plan only, written 2026-11-21. Nothing below is implemented unless it is listed under "Already in the tailer".
 
-**What this note is:** the ranked order in which to add parsers to the bridge's Game.log tailer (`scgameapi/gamelog.py`), with a regex sketch, the fields, the privacy handling, the value to the player, the effort and the dependencies for each. The lines themselves are described in [gamelog-catalog.md](gamelog-catalog.md).
+**What this note is:** the ranked order in which to add parsers to the bridge's Game.log tailer (`sctelemetry/gamelog.py`), with a regex sketch, the fields, the privacy handling, the value to the player, the effort and the dependencies for each. The lines themselves are described in [gamelog-catalog.md](gamelog-catalog.md).
 
 **Regexes are sketches.** They were written from templates and counts, then run once against the 293-file corpus (2026-11-21); the match counts are under [Regex check against the corpus](#regex-check-against-the-corpus). They are not yet in the tailer's test suite. Each needs synthetic-line tests (fake ids, fake handles) before it ships, as `tests/test_signals.py` does today.
 

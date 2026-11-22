@@ -3,7 +3,7 @@ import os
 
 import pytest
 
-from scgameapi import gamelog as gl
+from sctelemetry import gamelog as gl
 
 T0 = "<2026-01-01T10:00:00.000Z> "
 LINES = [

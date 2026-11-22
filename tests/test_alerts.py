@@ -1,4 +1,4 @@
-"""Alert engine (scgameapi/alerts.py): rule kinds, hysteresis / cooldown / debounce, re-baseline, routing,
+"""Alert engine (sctelemetry/alerts.py): rule kinds, hysteresis / cooldown / debounce, re-baseline, routing,
 scheduling, TTS detection, rules files, and a replay over real recordings. No audio is ever played: the
 service runs with DryRunSink and LocalAudioSink refuses to start under pytest."""
 import asyncio
@@ -10,7 +10,7 @@ import sys
 
 import pytest
 
-from scgameapi import alerts as A
+from sctelemetry import alerts as A
 
 REC = pathlib.Path(__file__).resolve().parents[1] / ".tmp" / "recordings"
 PERSEUS = REC / "20261121-150112.jsonl"
@@ -327,12 +327,12 @@ def test_tts_and_player_detection_with_fake_path(tmp_path):
     assert A.detect_tts({}, path=p, env={}, find_module=no_mod, **lin)["name"] == "espeak-ng"  # piper needs a voice
     voice = tmp_path / "v.onnx"
     voice.write_bytes(b"x")
-    t = A.detect_tts({}, path=p, env={"SCGAMEAPI_PIPER_VOICE": str(voice)}, find_module=no_mod, **lin)
+    t = A.detect_tts({}, path=p, env={"SCTELEMETRY_PIPER_VOICE": str(voice)}, find_module=no_mod, **lin)
     assert t["name"] == "piper" and t["wav"] and str(voice) in t["argv"]
     t = A.detect_tts({"piper_voice": str(voice)}, path=fake_bin(tmp_path / "b3"), env={},
                      find_module=lambda n: object() if n == "piper" else None, **lin)
     assert t["name"] == "piper" and t["argv"][1:3] == ["-m", "piper"]
-    assert A.detect_tts({}, path=p, env={"SCGAMEAPI_PIPER_VOICE": str(tmp_path / "missing.onnx")},
+    assert A.detect_tts({}, path=p, env={"SCTELEMETRY_PIPER_VOICE": str(tmp_path / "missing.onnx")},
                         find_module=no_mod, **lin)["name"] == "espeak-ng"
     assert stem(A.detect_player(fake_bin(tmp_path / "p1", "paplay"), **lin)) == "paplay"
     assert stem(A.detect_player(fake_bin(tmp_path / "p2", "paplay", "pw-play"), **lin)) == "pw-play"
@@ -396,7 +396,7 @@ def test_resolve_sound_falls_back_to_severity(tmp_path):
 
 
 def test_local_sink_refuses_under_pytest(monkeypatch):
-    monkeypatch.delenv("SCGAMEAPI_ALLOW_AUDIO_TEST", raising=False)
+    monkeypatch.delenv("SCTELEMETRY_ALLOW_AUDIO_TEST", raising=False)
     with pytest.raises(RuntimeError):
         A.LocalAudioSink({}, None, ["pw-play"])
 
@@ -671,7 +671,7 @@ def test_settings_speech_must_be_bool():
 
 
 def test_local_sink_feeds_stdin_tts_and_routes_winsound(monkeypatch):
-    monkeypatch.setenv("SCGAMEAPI_ALLOW_AUDIO_TEST", "1")  # _exec / _winsound are stubbed: nothing plays
+    monkeypatch.setenv("SCTELEMETRY_ALLOW_AUDIO_TEST", "1")  # _exec / _winsound are stubbed: nothing plays
     calls = []
 
     async def fake_exec(self, argv, stdin=None, timeout=15.0):

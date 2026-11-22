@@ -3,7 +3,7 @@
 usage:
   uv run python scripts/telemetry_probe.py [--addr 127.0.0.1:50051] [--tls] stream [--n 5]
   uv run python scripts/telemetry_probe.py ... actions
-Uses the runtime-extracted schema (scgameapi/schema.py); stubs cached in .tmp/gen.
+Uses the runtime-extracted schema (sctelemetry/schema.py); stubs cached in .tmp/gen.
 """
 import argparse, pathlib, sys
 
@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT))
 
 
 def load_stubs():
-    from scgameapi import stubs
+    from sctelemetry import stubs
     api, apig, _ = stubs.load()
     return api, apig
 

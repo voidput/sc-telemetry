@@ -6,6 +6,18 @@ updated: 2026-11-21
 
 # Changelog
 
+## 2026-11-21 (rename)
+- **Renamed scgameapi -> sc-telemetry**, hosted at https://github.com/voidput/sc-telemetry. Distribution `sc-telemetry`, package `sctelemetry/` (was `scgameapi/`; paths in older entries below refer to the old name), command `uv run sctelemetry`, env vars `SCTELEMETRY_*`.
+- Back-compat: `scgameapi-dashboard` stays as a deprecated alias of `sctelemetry`, and every `SCGAMEAPI_<NAME>` is still read when `SCTELEMETRY_<NAME>` is unset (`sctelemetry/envcompat.py`); both print a one-time deprecation note on stderr. Local data is unchanged (`.tmp/`, `.tmp/rsi-cache.json`, `.tmp/alerts.json`).
+- RSI lookup `User-Agent` is now `sc-telemetry/<version> (local telemetry dashboard)`; `pyproject.toml` gains `[project.urls]`; README CI badge, clone/ZIP URLs in README and install guide; `LICENSE` copyright holder `voidput`.
+
+## 2026-11-21 (public release prep)
+- MIT `LICENSE`; `pyproject.toml` declares `license = "MIT"` + `license-files`, drops the "Private :: Do Not Upload" classifier, adds classifiers and keywords.
+- New `SECURITY.md` (threat model, what stays local, private vulnerability reporting), `CONTRIBUTING.md` (uv setup, tests without the game, fixture privacy rules, vault conventions), root `CHANGELOG.md` pointer, GitHub issue templates (bug report asks for OS, channel and `Game.log` FileVersion, redacted bridge stderr) and a PR template.
+- README: legal/disclaimer section, link to SECURITY/CONTRIBUTING/LICENSE, dashboard screenshot from `--mock` data (`docs/assets/dashboard.png`).
+- Ice box ([plans/later/ideas.md](plans/later/ideas.md)) trimmed to generic ideas (Rust port, MCP/agent integration, hardware button panels, mappings from game files, opt-in shared org telemetry); references to unrelated private projects and plugins removed from docs, data-file comments and the dashboard CSS. Test host headers use TEST-NET (`192.0.2.5`).
+- New step-by-step player guide [install.md](install.md) (prerequisites, uv, env vars per Windows/LUG/Lutris/Steam, `USER.cfg`, Game.log check, run, options, extras, troubleshooting, uninstall); explicit PTU 5.0-only callout for LIVE 4.10, `<CHANNEL>` path placeholders, recommended Windows run command (`run.ps1` via `-ExecutionPolicy Bypass`), troubleshooting strings matching the bridge's `[gamelog]` output. README Quick start and Usage restructured to link it; `docs/Home.md` / `docs/README.md` index it.
+
 ## 2026-11-21 (cross-platform cleanup)
 - **Windows + Linux support**: new `scgameapi/paths.py` finds the install per OS (`--sc-dir` / `$SC_DIR`, Windows drives + `%ProgramFiles%` + RSI Launcher log, Linux `$WINEPREFIX`, `~/Games/star-citizen`, `~/.wine`, `/mnt|/media|/run/media` Wine-prefix globs, macOS CrossOver) and picks the channel (`$SCGAMEAPI_CHANNEL`, else last played, else LIVE); used by schema, Game.log tailer and server. No machine-specific default paths in code; the schema error lists the searched paths.
 - Ship capabilities: no home-dir `sc-gamedata` fallback; `--gamedata` / `$SCGAMEAPI_GAMEDATA` / `.tmp/gamedata/<channel>/` only.

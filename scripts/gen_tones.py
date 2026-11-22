@@ -1,4 +1,4 @@
-"""Generate the bundled alert tones scgameapi/data/sounds/{info,warn,critical}.wav (stdlib only).
+"""Generate the bundled alert tones sctelemetry/data/sounds/{info,warn,critical}.wav (stdlib only).
 
 Plain sine beeps with a short fade in/out: mono, 16-bit PCM, 22.05 kHz, a few KB each. WAV plays
 everywhere (winsound on Windows, aplay/pw-play/paplay on Linux, afplay on macOS). The output is
@@ -12,7 +12,7 @@ import struct
 import wave
 
 RATE = 22050
-OUT = pathlib.Path(__file__).resolve().parents[1] / "scgameapi" / "data" / "sounds"
+OUT = pathlib.Path(__file__).resolve().parents[1] / "sctelemetry" / "data" / "sounds"
 FADE_S = 0.008
 
 # (frequency Hz | None for silence, seconds)

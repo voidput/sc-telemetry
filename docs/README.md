@@ -1,12 +1,15 @@
 ---
-title: scgameapi docs
+title: sc-telemetry docs
 tags: [docs]
 updated: 2026-11-21
 ---
 
-# scgameapi docs
+# sc-telemetry docs
 
 Reverse-engineered notes on Star Citizen's local client telemetry API.
+
+## Getting started
+- [Install guide](install.md) — step-by-step setup for players on Windows and Linux: uv, game env vars + USER.cfg, running the bridge, extras, troubleshooting, uninstall
 
 ## Telemetry
 - [API spec](telemetry/api-spec.md) — transport, enabling, RPCs, read/write model, semantics, security, versioning
@@ -21,12 +24,12 @@ Reverse-engineered notes on Star Citizen's local client telemetry API.
 - [Game Telemetry API](telemetry/game-telemetry-api.md) — local gRPC `GameTelemetryService`: schema, data fields, enable switches, LIVE vs PTU diff
 
 ## Plans
-- [Ideas (ice box)](plans/later/ideas.md) — Rust port, StarOrg Codex integration (Rust home), StarOrg shared org telemetry
+- [Ideas (ice box)](plans/later/ideas.md) — Rust port, MCP/agent integration, hardware button panels, mappings from game files, opt-in shared org telemetry
 
 ## Code assets
-- [`scgameapi/schema.py`](../scgameapi/schema.py) — runtime schema extraction from the installed `StarCitizen.exe`, cached per build (no CIG-derived files committed)
+- [`sctelemetry/schema.py`](../sctelemetry/schema.py) — runtime schema extraction from the installed `StarCitizen.exe`, cached per build (no CIG-derived files committed)
 - [`scripts/gen_api_spec.py`](../scripts/gen_api_spec.py) — regenerate api-reference.md from proto + a recording
-- [`scripts/extract_protos.py`](../scripts/extract_protos.py) — manual extraction from any StarCitizen.exe (normally automatic via `scgameapi/schema.py`)
+- [`scripts/extract_protos.py`](../scripts/extract_protos.py) — manual extraction from any StarCitizen.exe (normally automatic via `sctelemetry/schema.py`)
 - [`scripts/obsidian_frontmatter.py`](../scripts/obsidian_frontmatter.py) — vault frontmatter generator
 
 ## Meta

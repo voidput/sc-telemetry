@@ -29,6 +29,8 @@ import sys
 import tempfile
 import time
 
+from . import envcompat
+
 DATA = pathlib.Path(__file__).parent / "data"
 DEFAULT_RULES = DATA / "alerts.default.json"
 
@@ -865,7 +867,7 @@ def detect_tts(tts_cfg: dict | None = None, path: str | None = None, env: dict |
     env = os.environ if env is None else env
     platform = platform or sys.platform
     rate = int(tts_cfg.get("rate_wpm") or 175)
-    voice = env.get("SCGAMEAPI_PIPER_VOICE") or tts_cfg.get("piper_voice")
+    voice = envcompat.getenv("PIPER_VOICE", env=env) or tts_cfg.get("piper_voice")
     if voice and pathlib.Path(voice).is_file():
         exe = which("piper", path)
         base = [exe] if exe else ([sys.executable, "-m", "piper"] if _has_module(find_module, "piper") else None)
@@ -963,8 +965,8 @@ class LocalAudioSink:
     name = "bridge"
 
     def __init__(self, sounds: dict, tts: dict | None, player: list[str] | None, log=None):
-        if os.environ.get("PYTEST_CURRENT_TEST") and os.environ.get("SCGAMEAPI_ALLOW_AUDIO_TEST") != "1":
-            raise RuntimeError("refusing real audio playback under pytest (set SCGAMEAPI_ALLOW_AUDIO_TEST=1)")
+        if os.environ.get("PYTEST_CURRENT_TEST") and envcompat.getenv("ALLOW_AUDIO_TEST") != "1":
+            raise RuntimeError("refusing real audio playback under pytest (set SCTELEMETRY_ALLOW_AUDIO_TEST=1)")
         self.sounds, self.tts, self.player, self.log = sounds, tts, player, log or (lambda m: None)
         self._task: asyncio.Task | None = None
         self._proc = None
@@ -1009,7 +1011,7 @@ class LocalAudioSink:
         text = alert.get("speech")
         if text and self.tts:
             if self.tts.get("wav"):
-                with tempfile.TemporaryDirectory(prefix="scgameapi-tts-") as d:
+                with tempfile.TemporaryDirectory(prefix="sctelemetry-tts-") as d:
                     wav = str(pathlib.Path(d) / "a.wav")
                     argv = [a.replace("{wav}", wav) for a in self.tts["argv"]]
                     if await self._exec(argv, stdin=text.encode("utf-8")) == 0 and self.player:

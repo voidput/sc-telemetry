@@ -6,8 +6,8 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from scgameapi import gamelog as gl
-from scgameapi import server as srv
+from sctelemetry import gamelog as gl
+from sctelemetry import server as srv
 
 from .test_gamelog import LINES
 
@@ -79,7 +79,7 @@ def test_private_endpoint_same_origin_only(client, hub):
                                    "env_session": "ptu-sc-alpha-500-1-2"}
     for headers in ({"host": "evil.example:8766"},                                     # DNS rebinding
                     {"host": "127.0.0.1:8766", "origin": "http://evil.example:8766"},  # cross-site
-                    {"host": "192.168.1.5:8766"}):                                      # LAN client
+                    {"host": "192.0.2.5:8766"}):                                      # LAN client
         r = client.get("/api/session/private", headers=headers)
         assert r.status_code == 403 and not any(x in r.text for x in SECRETS)
 
@@ -107,7 +107,7 @@ def test_replay_records_skip_session_and_junk():
 
 
 def test_bad_env_channel_rejected(monkeypatch, capsys):
-    monkeypatch.setenv("SCGAMEAPI_CHANNEL", "PTUU")
+    monkeypatch.setenv("SCTELEMETRY_CHANNEL", "PTUU")
     monkeypatch.setattr("sys.argv", ["server"])
     monkeypatch.setattr(srv.uvicorn, "run", lambda *a, **k: pytest.fail("must not start"))
     with pytest.raises(SystemExit) as e:
@@ -118,7 +118,7 @@ def test_bad_env_channel_rejected(monkeypatch, capsys):
 def _run_main(monkeypatch, argv, env):
     import argparse
     monkeypatch.setattr(srv, "CFG", argparse.Namespace())
-    for k in ("SC_DIR", "SCGAMEAPI_CHANNEL", "SCGAMEAPI_GAMEDATA"):
+    for k in ("SC_DIR", "SCTELEMETRY_CHANNEL", "SCTELEMETRY_GAMEDATA"):
         monkeypatch.setenv(k, "x")  # registered so monkeypatch restores what main() writes
         monkeypatch.delenv(k)
     for k, v in env.items():
@@ -140,7 +140,7 @@ def test_main_detects_install_and_last_played_channel(monkeypatch, tmp_path, cap
         os.utime(sc / ch / "Game.log", (1_700_000_000 + i, 1_700_000_000 + i))
     cfg = _run_main(monkeypatch, [], {"SC_DIR": str(sc)})
     assert cfg.channel == "PTU" and cfg.game_log_path == sc / "PTU" / "Game.log"
-    assert os.environ["SCGAMEAPI_CHANNEL"] == "PTU" and os.environ["SC_DIR"] == str(sc)  # schema follows
+    assert os.environ["SCTELEMETRY_CHANNEL"] == "PTU" and os.environ["SC_DIR"] == str(sc)  # schema follows
     cfg = _run_main(monkeypatch, ["--channel", "live", "--sc-dir", str(sc)], {})
     assert cfg.channel == "LIVE" and cfg.game_log_path == sc / "LIVE" / "Game.log"
 

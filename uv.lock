@@ -529,7 +529,7 @@ wheels = [
 ]
 
 [[package]]
-name = "scgameapi"
+name = "sc-telemetry"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

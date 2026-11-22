@@ -1,4 +1,4 @@
-"""Dashboard state logic (the <script id="state-logic"> block of scgameapi/static/index.html), run in node on
+"""Dashboard state logic (the <script id="state-logic"> block of sctelemetry/static/index.html), run in node on
 synthetic frames against the real action_state_map.json / shield_faces.json. Skipped without node."""
 import json
 import pathlib
@@ -8,7 +8,7 @@ import subprocess
 
 import pytest
 
-PKG = pathlib.Path(__file__).resolve().parents[1] / "scgameapi"
+PKG = pathlib.Path(__file__).resolve().parents[1] / "sctelemetry"
 NODE = shutil.which("node")
 pytestmark = pytest.mark.skipif(NODE is None, reason="node not installed")
 

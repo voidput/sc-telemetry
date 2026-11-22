@@ -33,6 +33,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from . import __version__
+
 PEOPLE_CAP = 300               # people remembered per session (least recently seen nearby evicted first)
 ID_MAP_CAP = 2000              # Vehicle Destroyed player id -> handle entries
 TOAST_MAX_LINES = 5            # notification joiner gives up after this many physical lines
@@ -360,7 +362,7 @@ def mock_people() -> PeopleState:
 
 
 # ---- RSI citizen / org lookup (opt-in) ---------------------------------------------------------------
-USER_AGENT = "scgameapi/0.1 (local telemetry dashboard)"
+USER_AGENT = f"sc-telemetry/{__version__} (local telemetry dashboard)"
 MIN_INTERVAL_S = 3.0
 TIMEOUT_S = 10.0
 TTL_S = 7 * 86400
@@ -618,7 +620,7 @@ class OrgLookup:
                 with contextlib.suppress(OSError):
                     os.fchmod(fd, 0o600)  # a leftover tmp file keeps its old mode under O_TRUNC
             with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump({"version": CACHE_VERSION, "note": "scgameapi RSI lookup cache: public citizen pages; "
+                json.dump({"version": CACHE_VERSION, "note": "sc-telemetry RSI lookup cache: public citizen pages; "
                            "clear with DELETE /api/people/cache", "entries": self.cache}, f, separators=(",", ":"))
             tmp.replace(self.cache_path)
             self.cache_error = None

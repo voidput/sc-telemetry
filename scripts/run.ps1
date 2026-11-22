@@ -5,7 +5,7 @@
 $ErrorActionPreference = "Stop"
 Push-Location (Join-Path $PSScriptRoot "..")
 try {
-    uv run scgameapi-dashboard @args
+    uv run sctelemetry @args
     $code = $LASTEXITCODE
 } finally {
     Pop-Location

@@ -2,14 +2,14 @@
 TriggerGameAction (POST /api/trigger). --mock/--replay use a fake trigger backend.
 
 usage:
-  uv run python -m scgameapi.server [--grpc 127.0.0.1:50051] [--port 8765] [--mock] [--record]
-  uv run python -m scgameapi.server --replay .tmp/recordings/X.jsonl [--replay-speed 1.0]
+  uv run python -m sctelemetry.server [--grpc 127.0.0.1:50051] [--port 8765] [--mock] [--record]
+  uv run python -m sctelemetry.server --replay .tmp/recordings/X.jsonl [--replay-speed 1.0]
 session context (shard/region/system) comes from Game.log: --game-log PATH | --channel PTU [--sc-dir DIR]
 | --no-game-log. --mock uses a synthetic session; --replay reads Game.log only with --game-log.
 alerts (docs/telemetry/alerts.md): --alerts PATH (user rules patch) --alerts-audio auto|bridge|browser|off
 --alerts-dry-run (log what would play, never start a player).
-people (docs/telemetry/people-and-lookup.md): --show-names ($SCGAMEAPI_SHOW_NAMES=1) shows player handles seen
-in Game.log; --lookup-orgs ($SCGAMEAPI_LOOKUP_ORGS=1) looks their orgs up on robertsspaceindustries.com. Both off
+people (docs/telemetry/people-and-lookup.md): --show-names ($SCTELEMETRY_SHOW_NAMES=1) shows player handles seen
+in Game.log; --lookup-orgs ($SCTELEMETRY_LOOKUP_ORGS=1) looks their orgs up on robertsspaceindustries.com. Both off
 by default and switchable at runtime (PUT /api/people/settings).
 """
 import argparse
@@ -31,7 +31,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from google.protobuf import json_format
 
-from . import alerts, gamelog, mock, paths, people, shipcaps, stubs
+from . import alerts, envcompat, gamelog, mock, paths, people, shipcaps, stubs
 
 STATIC = pathlib.Path(__file__).parent / "static"
 DATA = pathlib.Path(__file__).parent / "data"
@@ -481,7 +481,7 @@ _data_cache: dict[str, object] = {}
 
 
 def load_data_json(name: str):
-    """scgameapi/data/<name> parsed once and cached; raises OSError / ValueError when missing or invalid."""
+    """sctelemetry/data/<name> parsed once and cached; raises OSError / ValueError when missing or invalid."""
     if name not in _data_cache:
         _data_cache[name] = json.loads((DATA / name).read_text(encoding="utf-8"))
     return _data_cache[name]
@@ -609,7 +609,7 @@ async def get_signals():
     return {"signals": hub.signals_view()}
 
 
-# ---- people (scgameapi/people.py, docs/telemetry/people-and-lookup.md) -------------------------------
+# ---- people (sctelemetry/people.py, docs/telemetry/people-and-lookup.md) -------------------------------
 
 def _forbidden(err: str):
     return JSONResponse({"status": "FORBIDDEN", "message": err}, status_code=403)
@@ -659,13 +659,13 @@ async def delete_people_cache(request: Request):
 
 @app.get("/api/action-states")
 async def get_action_states():
-    """The shared action -> telemetry state map (scgameapi/data/action_state_map.json), verbatim."""
+    """The shared action -> telemetry state map (sctelemetry/data/action_state_map.json), verbatim."""
     return _data_response("action_state_map.json")
 
 
 @app.get("/api/shield-faces")
 async def get_shield_faces():
-    """Shield face layout metadata by faces[] length (scgameapi/data/shield_faces.json), verbatim."""
+    """Shield face layout metadata by faces[] length (sctelemetry/data/shield_faces.json), verbatim."""
     return _data_response("shield_faces.json")
 
 
@@ -834,13 +834,13 @@ async def _forward(name, hold_ms, reply):
     return reply(200, status, r.message, name, hold_ms)
 
 
-# ---- alerts (scgameapi/alerts.py, docs/telemetry/alerts.md) ----------------------------------------
+# ---- alerts (sctelemetry/alerts.py, docs/telemetry/alerts.md) ----------------------------------------
 
 ALERTS: alerts.AlertService | None = None
 
 
 def alerts_user_path() -> pathlib.Path:
-    p = getattr(CFG, "alerts", None) or os.environ.get("SCGAMEAPI_ALERTS")
+    p = getattr(CFG, "alerts", None) or envcompat.getenv("ALERTS")
     return pathlib.Path(p) if p else ALERTS_USER_JSON
 
 
@@ -1097,42 +1097,42 @@ def main():
     ap.add_argument("--fake-delay", type=float, default=0.0, help=argparse.SUPPRESS)  # test: slow fake replies
     ap.add_argument("--fake-fail", metavar="REGEX", default=None, help=argparse.SUPPRESS)  # test: fake FAILED
     ap.add_argument("--game-log", metavar="PATH", help="Game.log to follow for session context (read-only)")
-    ap.add_argument("--channel", default=(os.environ.get("SCGAMEAPI_CHANNEL") or "").upper() or None, type=str.upper,
+    ap.add_argument("--channel", default=(envcompat.getenv("CHANNEL") or "").upper() or None, type=str.upper,
                     choices=gamelog.CHANNELS,
-                    help="game channel for Game.log + schema ($SCGAMEAPI_CHANNEL; default: last played, else LIVE)")
+                    help="game channel for Game.log + schema ($SCTELEMETRY_CHANNEL; default: last played, else LIVE)")
     ap.add_argument("--sc-dir", default=os.environ.get("SC_DIR") or None,
                     help="StarCitizen install dir holding LIVE/, PTU/ ... ($SC_DIR; default: auto-detected, "
                          "see docs/telemetry/api-spec.md)")
     ap.add_argument("--no-game-log", action="store_true", help="disable Game.log session context")
-    ap.add_argument("--gamedata", metavar="PATH", default=os.environ.get("SCGAMEAPI_GAMEDATA") or None,
-                    help="sc-gamedata game-ships.json (or its directory) for ship capabilities ($SCGAMEAPI_GAMEDATA); "
+    ap.add_argument("--gamedata", metavar="PATH", default=envcompat.getenv("GAMEDATA") or None,
+                    help="sc-gamedata game-ships.json (or its directory) for ship capabilities ($SCTELEMETRY_GAMEDATA); "
                          "default .tmp/gamedata/<channel>/game-ships.json")
-    ap.add_argument("--alerts", metavar="PATH", default=os.environ.get("SCGAMEAPI_ALERTS") or None,
-                    help="user alert rules patch ($SCGAMEAPI_ALERTS; default .tmp/alerts.json if present)")
-    ap.add_argument("--alerts-audio", default=(os.environ.get("SCGAMEAPI_ALERTS_AUDIO") or "auto").lower(),
+    ap.add_argument("--alerts", metavar="PATH", default=envcompat.getenv("ALERTS") or None,
+                    help="user alert rules patch ($SCTELEMETRY_ALERTS; default .tmp/alerts.json if present)")
+    ap.add_argument("--alerts-audio", default=(envcompat.getenv("ALERTS_AUDIO") or "auto").lower(),
                     type=str.lower, choices=alerts.AUDIO_MODES,
                     help="who plays alert audio: auto (dashboard tab with sound enabled, else bridge) | bridge | "
-                         "browser | off ($SCGAMEAPI_ALERTS_AUDIO)")
+                         "browser | off ($SCTELEMETRY_ALERTS_AUDIO)")
     ap.add_argument("--alerts-dry-run", action="store_true",
-                    default=os.environ.get("SCGAMEAPI_ALERTS_DRY_RUN") == "1",
-                    help="bridge never plays audio, only logs what it would play ($SCGAMEAPI_ALERTS_DRY_RUN=1)")
-    ap.add_argument("--show-names", action="store_true", default=os.environ.get("SCGAMEAPI_SHOW_NAMES") == "1",
-                    help="show player handles seen in Game.log (same-origin dashboard only; $SCGAMEAPI_SHOW_NAMES=1)")
-    ap.add_argument("--lookup-orgs", action="store_true", default=os.environ.get("SCGAMEAPI_LOOKUP_ORGS") == "1",
+                    default=envcompat.getenv("ALERTS_DRY_RUN") == "1",
+                    help="bridge never plays audio, only logs what it would play ($SCTELEMETRY_ALERTS_DRY_RUN=1)")
+    ap.add_argument("--show-names", action="store_true", default=envcompat.getenv("SHOW_NAMES") == "1",
+                    help="show player handles seen in Game.log (same-origin dashboard only; $SCTELEMETRY_SHOW_NAMES=1)")
+    ap.add_argument("--lookup-orgs", action="store_true", default=envcompat.getenv("LOOKUP_ORGS") == "1",
                     help="look up those handles' orgs on robertsspaceindustries.com, cached in .tmp/rsi-cache.json "
-                         "($SCGAMEAPI_LOOKUP_ORGS=1)")
+                         "($SCTELEMETRY_LOOKUP_ORGS=1)")
     ap.add_argument("--rsi-cache", metavar="PATH", default=None, help=argparse.SUPPRESS)  # test: cache location
-    ap.add_argument("--fake-rsi", action="store_true", default=os.environ.get("SCGAMEAPI_FAKE_RSI") == "1",
+    ap.add_argument("--fake-rsi", action="store_true", default=envcompat.getenv("FAKE_RSI") == "1",
                     help=argparse.SUPPRESS)  # test: offline synthetic RSI pages, never the network
     ap.parse_args(namespace=CFG)
     if CFG.alerts_audio not in alerts.AUDIO_MODES:
-        ap.error(f"--alerts-audio / $SCGAMEAPI_ALERTS_AUDIO: invalid choice {CFG.alerts_audio!r}")
+        ap.error(f"--alerts-audio / $SCTELEMETRY_ALERTS_AUDIO: invalid choice {CFG.alerts_audio!r}")
     sc_dir = paths.find_sc_dir(CFG.sc_dir)
     CFG.sc_dir = str(sc_dir) if sc_dir is not None else None
     if CFG.channel is None:
         CFG.channel = paths.default_channel(sc_dir)
     if CFG.channel not in gamelog.CHANNELS:  # argparse does not apply choices to an env-derived default
-        ap.error(f"--channel / $SCGAMEAPI_CHANNEL: invalid choice {CFG.channel!r} (choose from {', '.join(gamelog.CHANNELS)})")
+        ap.error(f"--channel / $SCTELEMETRY_CHANNEL: invalid choice {CFG.channel!r} (choose from {', '.join(gamelog.CHANNELS)})")
     if CFG.fake_fail:
         try:
             re.compile(CFG.fake_fail)
@@ -1158,10 +1158,17 @@ def main():
     # the schema (stubs.load -> schema.resolve) follows the same install dir + channel as Game.log
     if CFG.sc_dir:
         os.environ["SC_DIR"] = CFG.sc_dir
-    os.environ["SCGAMEAPI_CHANNEL"] = CFG.channel
+    os.environ["SCTELEMETRY_CHANNEL"] = CFG.channel
     # SSE streams never end on their own: without a timeout a stopped bridge lingers until every
     # dashboard tab closes, still serving the old process's frames/alerts to tabs that never reconnect
     uvicorn.run(app, host=CFG.host, port=CFG.port, log_level="warning", timeout_graceful_shutdown=2)
+
+
+def main_deprecated_alias():
+    """`scgameapi-dashboard`: the console script from before the scgameapi -> sc-telemetry rename."""
+    print("[sc-telemetry] `scgameapi-dashboard` is deprecated; use `sctelemetry` (same options)",
+          file=sys.stderr, flush=True)
+    main()
 
 
 if __name__ == "__main__":
