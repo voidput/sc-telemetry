@@ -1,10 +1,15 @@
 ---
 title: Changelog
 tags: [docs]
-updated: 2026-11-23
+updated: 2026-11-25
 ---
 
 # Changelog
+
+## 2026-11-25
+- Opt-in game-data download (`--gamedata-fetch` / `$SCTELEMETRY_GAMEDATA_FETCH=1`, off by default; `sctelemetry/gamedata_hub.py`): reads the installed build from `<channel>/build_manifest.id` and fetches exactly that build's `game-ships` / `game-salvage` / `game-keybinds` JSON from the public voidput/sc-gamedata-dumps hub into `.tmp/gamedata/<channel>/`. Checks `_build`, `_schema`, and `build.json` size / sha256 when present; atomic writes; never another build. `--gamedata` disables it. Manual: `uv run python -m sctelemetry.gamedata_hub`. Report in `/api/ship` `gamedata.fetch`. Docs: [install.md](install.md), [telemetry/api-spec.md](telemetry/api-spec.md) §8.5.
+- Ship capabilities: a vehicle's upstream `capabilities` object (coming in sc-gamedata) wins per key over the local derivation; `cargoKnown: false` -> cargo unknown. Cache version 4.
+- `/api/actions` entries carry `keybind` (game label, actionmaps, activation mode, default inputs) from `game-keybinds.json` (`sctelemetry/keybinds.py`); dashboard Controls buttons show it as a tooltip. Tests: `tests/test_gamedata_hub.py`, `tests/test_keybinds.py`.
 
 ## 2026-11-24
 - PTU 5.0.202.35026 (CL 13273298) schema: additive only. New `FrameHeader`, `GameFrame` (+ `GameDebugInfo`: fps, ping, server fps, shard), `VehicleQuantumTravel`, actor location / tracked contract / CrimeStat / operator mode / player name; `quantum_fuel`, `altitude`, `VehicleState.health` now `optional`. Regenerated [telemetry/api-reference.md](telemetry/api-reference.md) (new `NOTES`; `player_name` redacted like `uec_balance`); version table in [telemetry/api-spec.md](telemetry/api-spec.md) §7. `--mock` fills the new fields when the resolved schema has them.

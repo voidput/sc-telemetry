@@ -1,7 +1,7 @@
 ---
 title: Game Telemetry API specification (SC client, PTU 5.0)
 tags: [docs, telemetry]
-updated: 2026-11-21
+updated: 2026-11-25
 ---
 
 # Game Telemetry API specification (SC client, PTU 5.0)
@@ -312,7 +312,9 @@ The dashboard bridge (`uv run python -m sctelemetry.server`) turns the gRPC API 
 ### 8.1 `GET /api/actions`
 
 ```json
-{"actions": [{"action_name": "v_lights", "category": "lights_controller", "holdable": false}, ...],
+{"actions": [{"action_name": "v_lights", "category": "lights_controller", "holdable": false,
+              "keybind": {"label": "Headlights (Toggle)", "activation_mode": "press",
+                          "actionmaps": ["lights_controller"], "defaults": {"keyboard": ["l"]}}}, ...],
  "dangerous": ["v_eject", "v_emergency_exit", "v_power_set_off", "v_power_set_thrusters_off", "v_power_toggle",
                "v_power_toggle_thrusters", "v_self_destruct", "v_toggle_qdrive_engagement"],
  "source": "game",          // or "fake" in --mock / --replay
@@ -320,6 +322,7 @@ The dashboard bridge (`uv run python -m sctelemetry.server`) turns the gRPC API 
 ```
 - In grpc mode the last **non-empty** list is cached for 30 s. While the list is empty (the game returns `[]` until the player has spawned, and also when triggers are disabled), every request queries the game again. On a transport error the bridge returns the stale cache, which may be empty, together with `error`.
 - In fake mode the list comes from `.tmp/triggerable-actions.json` when that file exists. Otherwise a small built-in list is used.
+- `keybind` (every action; `null` when unknown or no dataset): the game's own label and default inputs from sc-gamedata `game-keybinds.json`, found beside `game-ships.json` (`--gamedata` dir, else `.tmp/gamedata/<channel>/`; the opt-in hub fetch in §8.5 fills it). Action names match the keybind action names verbatim (all 112 of a PTU list found, no aliases). A name in several actionmaps (e.g. `mobiglas`, `v_open_all_doors`) lists them all in `actionmaps`; label / activation mode / defaults come from the first actionmap that has them. `defaults` keeps only devices with bindings (`keyboard`, `mouse`, `gamepad`, `joystick`); `{}` means no default binding (true for most vehicle actions). The dashboard shows it as the button tooltip. `/api/ship` `gamedata.keybinds` = `{loaded, source, source_build, actions, error}`.
 
 ### 8.2 `POST /api/trigger`
 
@@ -426,7 +429,7 @@ Parsed from unofficial debug lines in the same Game.log (formats and caveats: [g
 - `zone.kind`: `armistice`, `monitored`, `ungoverned`, `jurisdiction` or `other` (e.g. after "Leaving Armistice Zone"). `since` and the `*_seen` times are epoch seconds from the log line timestamps.
 - `armistice` is true from "Entering Armistice Zone" until "Leaving Armistice Zone". `jurisdiction` is the last "Entered <X> Jurisdiction" name.
 - `nearby`: one entry per ship class, most recently seen first, at most 50. `count` is distinct entities of that class (ship instances, not people: a reclaimed or respawned ship can count twice, parked and AI ships count too); `nearby_count` is all distinct entities. Your own ship(s) are excluded.
-- `nearby[].info` and `own_ship.info` (snapshot and `/api/signals` only, not `--record`): `{display_name, manufacturer, manufacturer_code, role, career, size, crew, cargo_scu}` from the local game dataset (`shipcaps`, no network); `null` for a class the dataset does not know. `size` is the dataset's vehicle size (1 smallest … 6 capital), `crew` its crew seats.
+- `nearby[].info` and `own_ship.info` (snapshot and `/api/signals` only, not `--record`): `{display_name, manufacturer, manufacturer_code, role, career, size, crew, cargo_scu}` from the local game dataset (`shipcaps`; no network at lookup time, see the opt-in hub fetch in §8.5); `null` for a class the dataset does not know. `size` is the dataset's vehicle size (1 smallest … 6 capital), `crew` its crew seats.
 - `own_ship.source`: `telemetry` (frame `vehicle.state.name`) or `game_log` (last `Vehicle Control Flow` seat release); `null` until known.
 - All signal state resets on rotation, `Log started`, and `SESSION_JOIN` / `SESSION_SHARD_CHANGE` / `SESSION_LEAVE`.
 
@@ -458,9 +461,11 @@ Data for showing live state **on** action buttons (dashboard Controls panel; oth
           "cargo_scu": null},
  "source_build": "5.0.202.10025", "source": "ptu/game-ships.json"}
 ```
-- `null` when there is no vehicle or the class is not in the dataset (no gating; the dashboard shows `?`). `/api/ship` and `/api/ships` add `gamedata: {loaded, source, source_build, ships, error}`.
+- `null` when there is no vehicle or the class is not in the dataset (no gating; the dashboard shows `?`). `/api/ship` and `/api/ships` add `gamedata: {loaded, source, source_build, ships, error, fetch}`; `fetch` is the last hub fetch report `{build, channel, fetched[], current[], missing[], rejected{name: reason}, error}`, or `null` when the fetch is off.
 - `source` (both places) is a short label `<parent dir>/<file>` (e.g. `ptu/game-ships.json`, `live/game-ships.json`), never the absolute path; `error` names files the same way. The full path appears only in the bridge's stderr log.
 - Source: sc-gamedata `game-ships.json` (+ `game-salvage.json` beside it). Priority: `--gamedata PATH` / `$SCTELEMETRY_GAMEDATA` (file or directory) → `.tmp/gamedata/<channel>/game-ships.json`. The dataset is optional and comes from a separate sc-gamedata extractor (not part of this repo). The derived table is cached in `.tmp/ship-capabilities.json` keyed by source path/mtime/size/build, and reloaded when the source mtime changes (checked at most every 5 s). A missing or half-written dataset only disables gating.
+- Hub fetch (opt-in, off by default: `--gamedata-fetch` / `$SCTELEMETRY_GAMEDATA_FETCH=1`; ignored with `--gamedata`; `sctelemetry/gamedata_hub.py`): once at startup, in the background, the bridge reads the installed build of the channel from `<SC>/<CHANNEL>/build_manifest.id` (`Data.RequestedP4kVersion`, else `Data.Version`) and downloads `https://raw.githubusercontent.com/voidput/sc-gamedata-dumps/<build>/data/{game-ships,game-salvage,game-keybinds}.json` into `.tmp/gamedata/<channel>/`. The hub has one tag per build (PTU tags are prereleases); a missing tag or file is reported as `missing` and nothing else happens. Never another build. Checks: JSON object, `_build == <build>`, `_schema` (when present) names the dataset, and `bytes` / `sha256` from the tag's root `build.json` (`build` must equal the tag) when it lists them. Unknown keys are ignored. Writes are atomic; a local file whose `_build` already equals the build is not downloaded again. shipcaps reloads after a successful fetch. This is the only game-data request the bridge makes.
+- Upstream capabilities: when a vehicle carries `capabilities` (sc-gamedata, same keys as below plus `cargoKnown`), each boolean key it sets wins; missing or non-boolean keys use the local derivation. `cargoKnown: false` means cargo `false` and `cargo_scu: null`. The salvage dataset's ship list still adds `salvage`.
 - Key: `recordName` `EntityClassDefinition.<CLASS>`, where `<CLASS>` equals telemetry `vehicle.state.class_name`. Variants sharing a class are OR-merged.
 - Derivation (`sctelemetry/shipcaps.py`, default loadout): `mining` = any `WeaponMining` or role contains "Mining"; `salvage` = role contains "Salvage" or the salvage dataset lists the class (current datasets list none); `refuel` = role contains "Refuel"; `tractor` = `TractorBeam`; `guns` = `WeaponGun` or turrets; `scan` = radars; `quantum` = quantumDrives; `qed` = quantumEnforcement; `emp` = `EMP`; `missiles` = missileRacks; `cargo` (bool) = `totals.cargoScu` > 0 or cargoGrids exist; `cargo_scu` (number | null) = `totals.cargoScu` when present. `cargo: false` means "not in the dataset", not "carries none" (the dashboard shows `?`). Display only, never gates.
 - Gating reach: only `mining`, `salvage` and `refuel` gate in practice. `guns` follows the rule above, so mining ships with turrets or default-loadout repeaters (e.g. Prospector: `WeaponMining` + 2× `WeaponGun`) report `guns: true` and `v_set_guns_mode` is effectively never gated; `scan` / `quantum` are true for nearly every ship. Tightening `guns` to `WeaponGun` only is a possible later change.

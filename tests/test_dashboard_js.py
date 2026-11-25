@@ -253,3 +253,12 @@ def test_toast_allowed_levels(tmp_path):
                  [True, True, True, True],
                  [True, True, True, True],
                  ["off", "all", "all"]]
+
+
+def test_keybind_tip(tmp_path):
+    out = run(tmp_path, """return [
+      L.keybindTip({ label: "mobiGlas (Toggle)", defaults: { keyboard: ["f1"], gamepad: ["shoulderl+back", 3, ""] } }),
+      L.keybindTip({ label: "Open All Doors", defaults: {} }),
+      L.keybindTip(null), L.keybindTip("x"), L.keybindTip({ defaults: { mouse: "mouse1" } })];""")
+    assert out == ["mobiGlas (Toggle)\nDefault: Keyboard: F1 · Gamepad: SHOULDERL+BACK",
+                   "Open All Doors\nNo default binding", "", "", "No default binding"]

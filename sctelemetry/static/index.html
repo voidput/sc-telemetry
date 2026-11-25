@@ -982,7 +982,20 @@ globalThis.StateLogic = (() => {
     });
   }
 
-  return { MODE_CAP, getPath, groupPath, stateFor, fmtValue, indexMap, isStateless, litFor, buttonView, faceLayout, faceStates };
+  // game keybind info (/api/actions `keybind`, from sc-gamedata game-keybinds.json) -> tooltip text, or "" when none
+  const KB_DEVICE = { keyboard: "Keyboard", mouse: "Mouse", gamepad: "Gamepad", joystick: "Joystick" };
+  function keybindTip(kb) {
+    if (!kb || typeof kb !== "object") return "";
+    const lines = [];
+    if (typeof kb.label === "string" && kb.label) lines.push(kb.label);
+    const d = kb.defaults && typeof kb.defaults === "object" ? kb.defaults : {};
+    const keys = Object.keys(KB_DEVICE).filter(k => Array.isArray(d[k]) && d[k].some(x => typeof x === "string" && x))
+      .map(k => KB_DEVICE[k] + ": " + d[k].filter(x => typeof x === "string" && x).map(x => x.toUpperCase()).join(", "));
+    lines.push(keys.length ? "Default: " + keys.join(" · ") : "No default binding");
+    return lines.join("\n");
+  }
+  return { MODE_CAP, getPath, groupPath, stateFor, fmtValue, indexMap, isStateless, litFor, buttonView, faceLayout, faceStates,
+    keybindTip };
 })();
 </script>
 <script id="alert-logic">
@@ -1704,7 +1717,8 @@ function loadActions() {
     .then(d => {
       const list = Array.isArray(d?.actions) ? d.actions : [];
       CTL.actions = list.filter(a => a && typeof a.action_name === "string" && /^[a-z0-9_]{1,64}$/.test(a.action_name))
-        .map(a => ({ action_name: a.action_name, category: typeof a.category === "string" && a.category ? a.category : "other", holdable: a.holdable === true }));
+        .map(a => ({ action_name: a.action_name, category: typeof a.category === "string" && a.category ? a.category : "other", holdable: a.holdable === true,
+          keybind: a.keybind && typeof a.keybind === "object" ? a.keybind : null }));
       if (Array.isArray(d?.dangerous) && d.dangerous.length) CTL.dangerous = new Set(d.dangerous.filter(x => typeof x === "string"));
       CTL.source = typeof d?.source === "string" ? d.source : "";
       CTL.error = typeof d?.error === "string" ? d.error : null;
@@ -1724,7 +1738,7 @@ function loadActions() {
 }
 
 function buildControls() {
-  const sig = CTL.actions.map(a => a.action_name + (a.holdable ? "*" : "") + "@" + a.category).join(",") + "|" + [...CTL.dangerous].join(",");
+  const sig = CTL.actions.map(a => a.action_name + (a.holdable ? "*" : "") + (a.keybind ? "~" : "") + "@" + a.category).join(",") + "|" + [...CTL.dangerous].join(",");
   if (sig === CTL.sig) return;
   CTL.sig = sig; disarm();
   const box = $("ctlGroups"), open = {};
@@ -1776,6 +1790,8 @@ function mkCtlBtn(a, danger) {
   if (b.holdable) el.dataset.hold = "";
   b.aria = actionLabel(a.action_name) + (danger ? " (dangerous, two-step confirm)" : b.holdable ? " (tap, or press and hold to send a timed hold)" : "");
   el.setAttribute("aria-label", b.aria);
+  const kbTip = StateLogic.keybindTip(a.keybind);
+  if (kbTip) el.title = kbTip;   // game label + default keys (sc-gamedata keybinds), hover only
   CTL.btns[a.action_name] = b;
   idleBtn(b);
   // key auto-repeat must never activate: a held Enter would otherwise re-click every repeat

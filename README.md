@@ -84,7 +84,7 @@ Bundled tones (`sctelemetry/data/sounds/*.wav`, regenerate with `scripts/gen_ton
 
 ### Ship capabilities (optional)
 
-Mining / salvage / refuel gating uses a game-data export (`game-ships.json`, plus `game-salvage.json` beside it) produced by an sc-gamedata extractor (a separate tool, not part of this repo). Put it at `.tmp/gamedata/<channel>/game-ships.json` (e.g. `.tmp/gamedata/live/`) or point `--gamedata PATH` / `$SCTELEMETRY_GAMEDATA` at the file or its directory. Without it, capabilities are simply unknown and nothing is gated.
+Mining / salvage / refuel gating uses a game-data export (`game-ships.json`, plus `game-salvage.json` beside it) produced by an sc-gamedata extractor (a separate tool, not part of this repo). Put it at `.tmp/gamedata/<channel>/game-ships.json` (e.g. `.tmp/gamedata/live/`) or point `--gamedata PATH` / `$SCTELEMETRY_GAMEDATA` at the file or its directory, or pass `--gamedata-fetch` to download the installed build's files from the public [sc-gamedata-dumps](https://github.com/voidput/sc-gamedata-dumps) hub (off by default). Without it, capabilities are simply unknown and nothing is gated.
 
 ### Tests
 
@@ -134,7 +134,7 @@ Full threat model and how to report a vulnerability: [SECURITY.md](SECURITY.md).
 - **Trigger actions send real inputs to the game.** They are off unless you enable them in `USER.cfg`; use them at your own risk.
 - **Local-only by design.** The game service and the bridge listen on loopback with no authentication. Do not expose them to a network.
 - **No CIG data shipped.** No CIG schemas, `.proto` files or game data are in this repo; the schema is extracted at runtime from your own install.
-- **Network access is opt-in.** The bridge contacts `robertsspaceindustries.com` only when the RSI org lookup (`--lookup-orgs`) is enabled; nothing else leaves your machine.
+- **Network access is opt-in.** The bridge contacts `robertsspaceindustries.com` only when the RSI org lookup (`--lookup-orgs`) is enabled, and `raw.githubusercontent.com` only when the game-data fetch (`--gamedata-fetch`) is enabled; nothing else leaves your machine.
 - Provided "as is", without warranty, under the [MIT License](LICENSE).
 
 ## Contributing and license
