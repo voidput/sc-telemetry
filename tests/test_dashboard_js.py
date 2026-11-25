@@ -239,3 +239,17 @@ def test_toast_critical_ttl_ack_all_and_narrow_cap(tmp_path):
       return [n3, left59, left61, all, s.list().length, s.list().length === 0 && s.ackAll() === 0];""")
     assert r[0] == 3 and r[1] == 0 and sorted(r[2]) == ["r3", "r4", "r5"]
     assert r[3] == 2 and r[4] == 0 and r[5] is True
+
+
+def test_toast_allowed_levels(tmp_path):
+    r = run_alerts(tmp_path, """
+      const sev = ["info", "warn", "critical", "bogus"];
+      return ["all", "warn", "critical", "off", "nonsense", null].map(lv => sev.map(s => L.toastAllowed(lv, s)))
+        .concat([[L.notifyLevel("off"), L.notifyLevel("x"), L.notifyLevel(null)]]);""")
+    assert r == [[True, True, True, True],
+                 [False, True, True, False],
+                 [False, False, True, False],
+                 [False, False, False, False],
+                 [True, True, True, True],
+                 [True, True, True, True],
+                 ["off", "all", "all"]]

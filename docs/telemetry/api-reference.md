@@ -109,10 +109,10 @@ JSON path: `vehicle.state.flight.instruments`
 |---|---|---|---|---|---|
 | 1 | `speed` | `float` |  | m/s. | 0 … 502.2 |
 | 2 | `hydrogen_fuel` | `float` |  | 0..1 fraction. | 0 … 1 |
-| 3 | `quantum_fuel` | `float` |  | 0..1 fraction (0 throughout recordings). | 0 |
+| 3 | `quantum_fuel` | `float` | optional | 0..1 fraction. optional since CL 13273298: absent = no quantum drive / unknown. | 0 |
 | 4 | `g_meter` | [Gauge](#gauge) | optional | current = G now; max = session PEAK G (only rises), not a limit. | 95% of frames |
 | 5 | `boost` | [VehicleThrusterBoost](#vehiclethrusterboost) |  |  | 95% of frames |
-| 6 | `altitude` | `float` |  | m. FLT_MAX (3.4028235e38) when no reference body — treat abs(v) > 1e30 as absent. | FLT_MAX ×22566 |
+| 6 | `altitude` | `float` | optional | m. optional since CL 13273298 (absent = no reference body; older builds sent FLT_MAX — treat abs(v) > 1e30 as absent). | FLT_MAX ×22566 |
 | 7 | `radar_altitude` | `float` |  | m above terrain. FLT_MAX sentinel as altitude. | 1.084 … 103.5; FLT_MAX ×19505 |
 | 8 | `vertical_speed_indicator` | `float` |  | m/s, + = climbing. | -1.452e-05 … 41.43 |
 | 9 | `atmospheric_density` | `float` |  | kg/m³ (≈1.2 at sea level). | 0 … 1.2 |
@@ -196,8 +196,9 @@ JSON path: `vehicle.state`
 | 8 | `flight` | [VehicleFlight](#vehicleflight) | optional |  | 95% of frames |
 | 9 | `power` | [VehiclePowerState](#vehiclepowerstate) | optional |  | 95% of frames |
 | 10 | `shields` | [VehicleShields](#vehicleshields) | optional | PTU 5.0+. | 95% of frames |
-| 11 | `health` | `float` |  | Hull health 0..1. PTU 5.0+. | 1 |
+| 11 | `health` | `float` | optional | Hull health 0..1. PTU 5.0+; optional since CL 13273298. | 1 |
 | 12 | `master_mode` | [VehicleMasterModeState](#vehiclemastermodestate) | optional | PTU 5.0+. | 95% of frames |
+| 13 | `quantum_travel` | [VehicleQuantumTravel](#vehiclequantumtravel) | optional | CL 13273298+. | not seen |
 
 ### VehicleFrame
 
@@ -304,6 +305,38 @@ JSON path: `force_feedback`
 
 Unused field numbers: 1 (likely removed/reserved).
 
+### LocationName
+
+JSON path: `vehicle.state.quantum_travel.destination`, `actor.state.location.hierarchy`, `actor.state.location.jurisdiction`
+
+| # | Field | Type | Label | Notes | Observed |
+|---|---|---|---|---|---|
+| 1 | `id` | `string` |  |  | not seen |
+| 2 | `display_name` | `string` |  |  | not seen |
+
+### ActorLocation
+
+JSON path: `actor.state.location`
+
+| # | Field | Type | Label | Notes | Observed |
+|---|---|---|---|---|---|
+| 1 | `hierarchy` | [LocationName](#locationname) | repeated | Outer → inner (assumed): system, planet, zone… | not seen |
+| 2 | `jurisdiction` | [LocationName](#locationname) | optional |  | not seen |
+| 3 | `armistice_zone` | `bool` |  |  | not seen |
+
+### VehicleQuantumTravel
+
+JSON path: `vehicle.state.quantum_travel`
+
+| # | Field | Type | Label | Notes | Observed |
+|---|---|---|---|---|---|
+| 1 | `state` | [QuantumTravelState](#quantumtravelstate) |  |  | not seen |
+| 2 | `spool_ratio` | `float` |  | Assumed 0..1. | not seen |
+| 3 | `calibration_ratio` | `float` |  | Assumed 0..1. | not seen |
+| 4 | `destination` | [LocationName](#locationname) | optional |  | not seen |
+| 5 | `eta_seconds` | `float` | optional | Seconds to arrival; set while traveling (assumed). | not seen |
+| 6 | `remaining_distance_m` | `double` | optional | Metres (double). | not seen |
+
 ### ActorVitals
 
 JSON path: `actor.vitals`
@@ -332,6 +365,37 @@ JSON path: `actor.environment`
 | 2 | `ambient_radiation_rate` | `float` |  | Radiation dose rate; 0 when none. | 0 |
 | 3 | `breathable_atmosphere` | `bool` |  |  | `True`, `False` |
 
+### ContractObjective
+
+JSON path: `actor.state.tracked_contract.details.current_objective`
+
+| # | Field | Type | Label | Notes | Observed |
+|---|---|---|---|---|---|
+| 1 | `text` | `string` |  |  | not seen |
+
+### ContractDetails
+
+JSON path: `actor.state.tracked_contract.details`
+
+| # | Field | Type | Label | Notes | Observed |
+|---|---|---|---|---|---|
+| 1 | `contract_id` | `string` |  |  | not seen |
+| 2 | `title` | `string` |  |  | not seen |
+| 3 | `giver_name` | `string` |  |  | not seen |
+| 4 | `current_objective` | [ContractObjective](#contractobjective) | optional |  | not seen |
+| 5 | `objectives_completed` | `uint32` |  |  | not seen |
+| 6 | `objectives_total` | `uint32` |  |  | not seen |
+| 7 | `ends_at_unix_ms` | `int64` | optional | int64 → JSON string. | not seen |
+
+### ActorContract
+
+JSON path: `actor.state.tracked_contract`
+
+| # | Field | Type | Label | Notes | Observed |
+|---|---|---|---|---|---|
+| 1 | `revision` | `uint32` |  | Bumps when the tracked contract changes (assumed). | not seen |
+| 2 | `details` | [ContractDetails](#contractdetails) | optional |  | not seen |
+
 ### ActorState
 
 JSON path: `actor.state`
@@ -342,6 +406,11 @@ JSON path: `actor.state`
 | 2 | `crew_role` | [ActorCrewRole](#actorcrewrole) |  |  | `ACTOR_CREW_ROLE_PILOT`, `ACTOR_CREW_ROLE_UNSPECIFIED` |
 | 3 | `seat_name` | `string` |  | Seat entity name incl. trailing entity id, e.g. RSI_Perseus_Pilot_SeatDashboard_000000000002. | `RSI_Perseus_Pilot_SeatDashboard_000000000001`, `""` |
 | 4 | `uec_balance` | `int64` |  | Wallet in aUEC. int64 → JSON string. | `<redacted>` |
+| 5 | `operator_mode` | [ActorOperatorMode](#actoroperatormode) | optional | Seat operator mode (flight/combat/mining/…). CL 13273298+. | not seen |
+| 6 | `location` | [ActorLocation](#actorlocation) | optional | Location hierarchy + jurisdiction. CL 13273298+. | not seen |
+| 7 | `tracked_contract` | [ActorContract](#actorcontract) | optional | Tracked mission. CL 13273298+. | not seen |
+| 8 | `crime_stat` | `uint32` |  | CrimeStat level (assumed 0..5). CL 13273298+. | not seen |
+| 9 | `player_name` | `string` |  | Local player handle. CL 13273298+. | not seen |
 
 ### ActorFrame
 
@@ -361,6 +430,77 @@ JSON path: `turret`
 |---|---|---|---|---|---|
 | 1 | `light_amplification` | `bool` |  | Night vision active. | not seen |
 
+### FrameHeader
+
+JSON path: `header`
+
+| # | Field | Type | Label | Notes | Observed |
+|---|---|---|---|---|---|
+| 1 | `sequence` | `uint64` |  | Monotonic frame counter (assumed per stream). | not seen |
+| 2 | `game_time_unix_ms` | `int64` |  | int64 → JSON string. | not seen |
+
+### VideoMemory
+
+JSON path: `game.debug.vram`
+
+| # | Field | Type | Label | Notes | Observed |
+|---|---|---|---|---|---|
+| 1 | `used_mb` | `uint32` |  |  | not seen |
+| 2 | `budget_mb` | `uint32` |  |  | not seen |
+
+### NetworkStats
+
+JSON path: `game.debug.network`
+
+| # | Field | Type | Label | Notes | Observed |
+|---|---|---|---|---|---|
+| 1 | `ping_ms` | `float` |  |  | not seen |
+| 2 | `packet_loss_percent` | `float` |  |  | not seen |
+| 3 | `bits_per_second_in` | `uint32` |  |  | not seen |
+| 4 | `bits_per_second_out` | `uint32` |  |  | not seen |
+
+### ServerPerformance
+
+JSON path: `game.debug.server`
+
+| # | Field | Type | Label | Notes | Observed |
+|---|---|---|---|---|---|
+| 1 | `fps` | `float` |  |  | not seen |
+| 2 | `min_frame_time_ms` | `float` |  |  | not seen |
+| 3 | `max_frame_time_ms` | `float` |  |  | not seen |
+| 4 | `hitch_count` | `uint32` |  |  | not seen |
+
+### GameDebugInfo
+
+JSON path: `game.debug`
+
+| # | Field | Type | Label | Notes | Observed |
+|---|---|---|---|---|---|
+| 1 | `fps` | `float` |  |  | not seen |
+| 2 | `frame_time_ms` | `float` |  |  | not seen |
+| 3 | `main_thread_ms` | `float` |  |  | not seen |
+| 4 | `render_thread_ms` | `float` |  |  | not seen |
+| 5 | `gpu_ms` | `float` | optional |  | not seen |
+| 6 | `vram` | [VideoMemory](#videomemory) | optional |  | not seen |
+| 7 | `network` | [NetworkStats](#networkstats) | optional |  | not seen |
+| 8 | `server` | [ServerPerformance](#serverperformance) | optional |  | not seen |
+| 9 | `universe_time_unix_ms` | `int64` |  | int64 → JSON string. | not seen |
+| 10 | `shard_id` | `string` | optional | e.g. ptu_use1b_13273298_010 (matches Game.log 'New Shard Id'). | not seen |
+| 11 | `shard_name` | `string` | optional |  | not seen |
+
+### GameFrame
+
+JSON path: `game`
+
+| # | Field | Type | Label | Notes | Observed |
+|---|---|---|---|---|---|
+| 1 | `state` | [GameState](#gamestate) |  |  | not seen |
+| 2 | `menu_open` | `bool` |  |  | not seen |
+| 3 | `game_mode` | `string` |  |  | not seen |
+| 5 | `debug` | [GameDebugInfo](#gamedebuginfo) | optional |  | not seen |
+
+Unused field numbers: 4 (likely removed/reserved).
+
 ### TelemetryStreamRequest
 
 _Empty message._
@@ -369,14 +509,16 @@ _Empty message._
 
 | # | Field | Type | Label | Notes | Observed |
 |---|---|---|---|---|---|
+| 1 | `header` | [FrameHeader](#frameheader) |  | Per-frame sequence + game time. CL 13273298+. | not seen |
 | 3 | `vehicle` | [VehicleFrame](#vehicleframe) |  | Absent while not in/operating a vehicle. | 95% of frames |
 | 4 | `weapons` | [WeaponsFrame](#weaponsframe) |  | Vehicle weapons; absent on foot. | 95% of frames |
 | 5 | `events` | [EventsFrame](#eventsframe) |  | Present only on frames that carry events. | 0% of frames |
 | 6 | `actor` | [ActorFrame](#actorframe) |  | Local player. Frames stream only once the local player exists (after world load). | 100% of frames |
 | 7 | `force_feedback` | [ForceFeedbackFrame](#forcefeedbackframe) |  | Not seen in PTU 5.0 recordings. | not seen |
 | 8 | `turret` | [TurretFrame](#turretframe) |  | Expected only while manning a turret; not seen in recordings. | not seen |
+| 9 | `game` | [GameFrame](#gameframe) |  | Game/session state; debug stats need server.game.telemetry.debug.displayinfo. CL 13273298+. | not seen |
 
-Unused field numbers: 1, 2 (likely removed/reserved).
+Unused field numbers: 2 (likely removed/reserved).
 
 ### TriggerGameActionRequest
 
@@ -458,6 +600,42 @@ _Empty message._
 | `ACTOR_CREW_ROLE_PILOT` | 1 |
 | `ACTOR_CREW_ROLE_GUNNER` | 2 |
 | `ACTOR_CREW_ROLE_CREW` | 3 |
+
+### ActorOperatorMode
+
+| Value | Number |
+|---|---|
+| `ACTOR_OPERATOR_MODE_UNSPECIFIED` | 0 |
+| `ACTOR_OPERATOR_MODE_INACTIVE` | 1 |
+| `ACTOR_OPERATOR_MODE_FLIGHT` | 2 |
+| `ACTOR_OPERATOR_MODE_COMBAT` | 3 |
+| `ACTOR_OPERATOR_MODE_TURRET` | 4 |
+| `ACTOR_OPERATOR_MODE_MISSILE` | 5 |
+| `ACTOR_OPERATOR_MODE_SCANNING` | 6 |
+| `ACTOR_OPERATOR_MODE_MINING` | 7 |
+| `ACTOR_OPERATOR_MODE_QUANTUM_NAVIGATION` | 8 |
+| `ACTOR_OPERATOR_MODE_REFUEL` | 9 |
+| `ACTOR_OPERATOR_MODE_SALVAGE` | 11 |
+
+### QuantumTravelState
+
+| Value | Number |
+|---|---|
+| `QUANTUM_TRAVEL_STATE_UNSPECIFIED` | 0 |
+| `QUANTUM_TRAVEL_STATE_OFF` | 1 |
+| `QUANTUM_TRAVEL_STATE_IDLE` | 2 |
+| `QUANTUM_TRAVEL_STATE_ALIGNING` | 3 |
+| `QUANTUM_TRAVEL_STATE_TRAVELING` | 4 |
+| `QUANTUM_TRAVEL_STATE_COOLDOWN` | 5 |
+
+### GameState
+
+| Value | Number |
+|---|---|
+| `GAME_STATE_UNSPECIFIED` | 0 |
+| `GAME_STATE_FRONT_END` | 1 |
+| `GAME_STATE_LOADING` | 2 |
+| `GAME_STATE_IN_GAME` | 3 |
 
 ### VehicleDoorState.DoorOpenState
 

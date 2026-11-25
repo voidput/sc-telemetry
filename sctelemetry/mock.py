@@ -35,7 +35,8 @@ def frame(api, types, t: float):
     vs.name, vs.class_name, vs.manufacturer = "Mock Gladius", "AEGS_Gladius", "Aegis Dynamics"
     vs.type = types.VEHICLE_TYPE_SPACESHIP
     vs.lights_enabled = STATE["lights_enabled"]
-    vs.health = 0.75 + 0.25 * s(t / 17)
+    if _has(vs, "health"):  # PTU 5.0+; older cached schemas lack it
+        vs.health = 0.75 + 0.25 * s(t / 17)
     vs.doors.open_state = types.VehicleDoorState.DOOR_OPEN_STATE_CLOSED
     vs.doors.lock_state = types.VehicleDoorState.DOOR_LOCK_STATE_LOCKED
     vs.shields.level = 0.5 + 0.5 * s(t / 6)
@@ -102,7 +103,63 @@ def frame(api, types, t: float):
         getattr(ff.linear, ax).damping = 0.5 + 0.5 * s(t / (k + 1))
 
     r.turret.light_amplification = False
+    _newer_fields(r, types, t)
     return r
+
+
+def _has(msg, field: str) -> bool:
+    return field in msg.DESCRIPTOR.fields_by_name
+
+
+def _newer_fields(r, types, t: float):
+    """Fields added in PTU 5.0 CL 13273298; skipped when the resolved schema predates them."""
+    s = math.sin
+    if _has(r, "header"):
+        r.header.sequence = int(t * 20)
+        r.header.game_time_unix_ms = int(time.time() * 1000)
+    st = r.actor.state
+    if _has(st, "operator_mode"):
+        st.operator_mode = types.ACTOR_OPERATOR_MODE_FLIGHT
+        st.crime_stat = 0
+        st.player_name = "MockPilot"
+        for lid, name in (("stanton", "Stanton"), ("hurston", "Hurston"), ("lorville", "Lorville")):
+            st.location.hierarchy.add(id=lid, display_name=name)
+        st.location.jurisdiction.id, st.location.jurisdiction.display_name = "hurston_dynamics", "Hurston Dynamics"
+        st.location.armistice_zone = False
+        st.tracked_contract.revision = 1
+        cd = st.tracked_contract.details
+        cd.contract_id, cd.title, cd.giver_name = "mock-001", "Mock Delivery", "Covalex"
+        cd.current_objective.text = "Deliver 2 boxes to Lorville"
+        cd.objectives_completed, cd.objectives_total = int(t / 60) % 3, 3
+    vs = r.vehicle.state
+    if _has(vs, "quantum_travel"):
+        qt = vs.quantum_travel
+        phase = int(t / 20) % 4  # idle -> aligning -> traveling -> cooldown
+        qt.state = (types.QUANTUM_TRAVEL_STATE_IDLE, types.QUANTUM_TRAVEL_STATE_ALIGNING,
+                    types.QUANTUM_TRAVEL_STATE_TRAVELING, types.QUANTUM_TRAVEL_STATE_COOLDOWN)[phase]
+        qt.spool_ratio = min(1.0, (t % 20) / 20) if phase >= 1 else 0.0
+        qt.calibration_ratio = qt.spool_ratio
+        qt.destination.id, qt.destination.display_name = "arccorp", "ArcCorp"
+        if phase == 2:
+            qt.eta_seconds = 20 - t % 20
+            qt.remaining_distance_m = qt.eta_seconds * 2.8e8
+    if _has(r, "game"):
+        g = r.game
+        g.state = types.GAME_STATE_IN_GAME
+        g.menu_open = False
+        g.game_mode = "SC_Default"
+        d = g.debug
+        d.fps = 60 + 15 * s(t / 5)
+        d.frame_time_ms = 1000 / d.fps
+        d.main_thread_ms, d.render_thread_ms, d.gpu_ms = 9.5, 11.0, 12.5
+        d.vram.used_mb, d.vram.budget_mb = 9800, 16384
+        d.network.ping_ms = 45 + 10 * s(t / 7)
+        d.network.packet_loss_percent = 0.0
+        d.network.bits_per_second_in, d.network.bits_per_second_out = 850_000, 120_000
+        d.server.fps, d.server.min_frame_time_ms, d.server.max_frame_time_ms = 30, 28.0, 41.0
+        d.server.hitch_count = 0
+        d.universe_time_unix_ms = int(time.time() * 1000)
+        d.shard_id, d.shard_name = "mock_use1b_0_001", "Mock Shard"
 
 
 def now():

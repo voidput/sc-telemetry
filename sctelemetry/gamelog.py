@@ -34,12 +34,20 @@ READ_MAX_PER_POLL = (4 << 20) if os.name == "nt" else None
 
 REGIONS = {
     "use1": "US East", "usw2": "US West", "euw1": "EU West", "euc1": "EU Central",
-    "apse2": "Asia-Pacific SE (Sydney)", "apne1": "Asia-Pacific NE (Tokyo)",
+    "apse2": "Asia-Pacific SE (Sydney)", "apne1": "Asia-Pacific NE (Tokyo)", "ape1": "Asia-Pacific East",
 }
 # fields that identify the player's connection/session: never written to recordings
 PRIVATE_FIELDS = ("server_address", "server_port", "session_id", "env_session")
 FIELDS = ("channel", "build", "env_session", "session_id", "shard", "region_code", "region_name",
-          "server_address", "server_port", "location_id", "system", "joined_at", "log_started_at")
+          "server_address", "server_port", "location_id", "system", "joined_at", "log_started_at",
+          # login queue (cleared on join), backend hub link, last game-server disconnect (no names/IPs)
+          "queue_name", "queue_position", "queue_eta_s", "queue_at", "hub", "hub_status", "hub_at",
+          "disconnects", "last_disconnect_reason", "last_disconnect_at", "last_disconnect_uptime_s",
+          "last_disconnect_expected")
+# disconnect reasons that are the player's own doing (quit, exit to menu); anything else = dropped
+EXPECTED_DISCONNECT = ("player requested disconnect", "disconnect light", "disconnectlight", "nub destroyed",
+                       "before game shutdown")
+DISCONNECT_DEDUP_S = 2.0  # one disconnect can log a line per channel (Replicant + GameClient), first wins
 
 _TS = re.compile(r"^<(?P<ts>\d{4}-\d\d-\d\dT[\d:.]+Z)>\s?(?P<body>.*)$")
 _RULES = [
@@ -52,7 +60,14 @@ _RULES = [
                         r"shard\[(?P<shard>[^\]]*)\](?: locationId\[(?P<loc>-?\d+)\])?")),
     ("shard", re.compile(r"<Update Shard Id> New Shard Id: (?P<shard>[A-Za-z0-9_\-]+?)\.?(?:\s|$)")),
     ("loading", re.compile(r"^Loading screen for (?P<system>[^:]+?) : \S+ closed after")),
+    ("queue", re.compile(r"<AccountLoginQueueStatus> .*?queue name (?P<name>\S+) - position (?P<pos>\d+)"
+                         r" - eta \(seconds\) (?P<eta>-?\d+)")),
+    ("hub", re.compile(r"<Hub> (?P<state>connected|disconnected)(?: - (?:status|initiate)\[(?P<code>-?\d+)\])?")),
+    # skips (never captures) remoteAddr/localAddr/session/node_id/nickname/playerGEID between the groups
+    ("disconnect", re.compile(r"<Channel Disconnected> cause=(?P<cause>-?\d+) reason=\"(?P<reason>[^\"]*)\""
+                              r".*?gamerules=\"(?P<rules>[^\"]*)\"(?:.*?uptime_secs=(?P<up>[\d.]+))?")),
 ]
+_SEARCH = ("join", "shard", "queue", "hub", "disconnect")
 
 
 def parse_ts(ts: str | None) -> float | None:
@@ -69,7 +84,7 @@ def parse_line(line: str) -> dict | None:
     m = _TS.match(line)
     ts, body = (m["ts"], m["body"]) if m else (None, line)
     for kind, rx in _RULES:
-        g = rx.search(body) if kind in ("join", "shard") else rx.match(body)
+        g = rx.search(body) if kind in _SEARCH else rx.match(body)
         if not g:
             continue
         ev = {"kind": kind, "ts": ts}
@@ -88,8 +103,24 @@ def parse_line(line: str) -> dict | None:
             ev["shard"] = g["shard"]
         elif kind == "loading":
             ev["system"] = system_name(g["system"].strip())
+        elif kind == "queue":
+            ev.update(name=g["name"], position=int(g["pos"]), eta_s=int(g["eta"]))
+        elif kind == "hub":
+            ev.update(state=g["state"], code=int(g["code"]) if g["code"] else None)
+        elif kind == "disconnect":
+            ev.update(cause=int(g["cause"]), reason=g["reason"], gamerules=g["rules"],
+                      uptime_s=float(g["up"]) if g["up"] else None)
         return ev
     return None
+
+
+def fmt_secs(s: float | None) -> str | None:
+    """1234.5 -> "20m 34s"; 7300 -> "2h 01m"; None/negative -> None."""
+    if s is None or s < 0:
+        return None
+    s = int(s)
+    h, m, sec = s // 3600, s // 60 % 60, s % 60
+    return f"{h}h {m:02d}m" if h else f"{m}m {sec:02d}s" if m else f"{sec}s"
 
 
 def channel_from_exe(path: str) -> str | None:
@@ -151,7 +182,12 @@ class SessionState:
     def reset(self):
         self.f = dict.fromkeys(FIELDS)
         self.f["channel"] = self.default_channel
+        self.f["disconnects"] = 0
         self.shard_short = None
+        self._last_dc = None  # (epoch, reason) for de-duplicating per-channel disconnect lines
+
+    def _clear_queue(self):
+        self.f.update(queue_name=None, queue_position=None, queue_eta_s=None, queue_at=None)
 
     def as_dict(self) -> dict:
         return {**self.f, "shard_short": self.shard_short}
@@ -178,6 +214,7 @@ class SessionState:
             self._set_shard(ev["shard"])
             self.f.update(server_address=ev["address"], server_port=ev["port"],
                           location_id=ev["location_id"], joined_at=ev.get("ts"))
+            self._clear_queue()
             out.append({"type": "SESSION_JOIN", "t": t, "detail": self._shard_label()})
         elif k == "shard" and ev["shard"] != self.f["shard"]:
             had = self.f["shard"] is not None
@@ -192,6 +229,35 @@ class SessionState:
                 out.append({"type": "SESSION_LEAVE", "t": t, "detail": left})
             self.f["system"] = ev["system"]
             out.append({"type": "SESSION_SYSTEM", "t": t, "detail": ev["system"]})
+        elif k == "queue":
+            moved = ev["position"] != self.f["queue_position"]
+            self.f.update(queue_name=ev["name"], queue_position=ev["position"],
+                          queue_eta_s=max(0, ev["eta_s"]), queue_at=ev.get("ts"))
+            if moved:
+                eta = fmt_secs(self.f["queue_eta_s"])
+                out.append({"type": "SESSION_QUEUE", "t": t,
+                            "detail": f"position {ev['position']}" + (f", ETA {eta}" if eta else "")})
+        elif k == "hub":
+            was = self.f["hub"]
+            self.f.update(hub="up" if ev["state"] == "connected" else "down", hub_status=ev["code"], hub_at=ev.get("ts"))
+            if self.f["hub"] == "down" and was != "down":
+                out.append({"type": "SESSION_HUB_DOWN", "t": t,
+                            "detail": "lost" + (f" (status {ev['code']})" if ev["code"] is not None else "")})
+            elif self.f["hub"] == "up" and was == "down":
+                out.append({"type": "SESSION_HUB_UP", "t": t, "detail": "reconnected"})
+        elif k == "disconnect" and not ev["gamerules"].endswith("_Frontend"):
+            reason = ev["reason"] or "unknown"
+            if self._last_dc and t is not None and self._last_dc[0] is not None \
+                    and abs(t - self._last_dc[0]) < DISCONNECT_DEDUP_S:
+                return out  # same disconnect logged on another channel (reason can differ, e.g. shutdown)
+            self._last_dc = (t, reason)
+            expected = any(x in reason.lower() for x in EXPECTED_DISCONNECT)
+            self.f["disconnects"] += 1
+            self.f.update(last_disconnect_reason=reason, last_disconnect_at=ev.get("ts"),
+                          last_disconnect_uptime_s=ev["uptime_s"], last_disconnect_expected=expected)
+            up = fmt_secs(ev["uptime_s"])
+            out.append({"type": "SESSION_DISCONNECT" if expected else "SESSION_DROPPED", "t": t,
+                        "detail": reason + (f" (after {up})" if up else "")})
         return out
 
     def _shard_label(self):

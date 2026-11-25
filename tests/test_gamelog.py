@@ -284,3 +284,71 @@ def test_tailer_windows_mode_no_inode_and_capped_reads(tmp_path, monkeypatch):
         if t._pos >= p.stat().st_size:
             break
     assert t.rotations == 1 and t.state.as_dict()["log_started_at"] is not None
+
+
+# ---- login queue, hub link, game-server disconnects -------------------------------------
+
+QUEUE = T0 + ("[Notice] <AccountLoginQueueStatus> Received a queue status update message with values: "
+              "queue name global - position {pos} - eta (seconds) {eta} [Team_GameServices][Login]")
+HUB_DOWN = T0 + "[Notice] <Hub> disconnected - status[-3] [Team_GameServices][Login]"
+HUB_UP = "<2026-01-01T10:00:05.000Z> [Notice] <Hub> connected - initiate[1] [Team_GameServices][Login]"
+
+
+def dc(reason, rules="SC_Default", host="Replicant", ts="2026-01-01T11:00:00.000Z", up="3725.5"):
+    return (f'<{ts}> [Notice] <Channel Disconnected> cause=1 reason="{reason}" frame=9 isRemote=1 '
+            f'viewState=eCVS_InGame map="megamap" gamerules="{rules}" hostType="{host}" remoteAddr=192.0.2.7:64000 '
+            f'localAddr=198.51.100.2:5000 connection={{3, 0}} session=abc123 node_id=11111111-2222-3333-4444-555555555555 '
+            f'nickname="SomeHandle" playerGEID=123456789 uptime_secs={up} [Team_Network][Network][Replicant]')
+
+
+def test_parse_queue_hub_disconnect():
+    q = gl.parse_line(QUEUE.format(pos=42, eta=180))
+    assert q == {"kind": "queue", "ts": "2026-01-01T10:00:00.000Z", "name": "global", "position": 42, "eta_s": 180}
+    assert gl.parse_line(HUB_DOWN) == {"kind": "hub", "ts": "2026-01-01T10:00:00.000Z", "state": "disconnected", "code": -3}
+    assert gl.parse_line(HUB_UP)["state"] == "connected"
+    d = gl.parse_line(dc("Remote Disconnect - player inactive"))
+    assert d["kind"] == "disconnect" and d["reason"] == "Remote Disconnect - player inactive"
+    assert d["gamerules"] == "SC_Default" and d["uptime_s"] == 3725.5
+    # never carries the player's handle, addresses or ids
+    assert not {"SomeHandle", "192.0.2.7", "198.51.100.2", "abc123", "123456789"} & {str(v) for v in d.values()}
+
+
+def test_queue_events_and_cleared_on_join():
+    st = gl.SessionState()
+    evs = st.apply(gl.parse_line(QUEUE.format(pos=42, eta=180)))
+    evs += st.apply(gl.parse_line(QUEUE.format(pos=42, eta=170)))  # same position: no new event
+    evs += st.apply(gl.parse_line(QUEUE.format(pos=7, eta=30)))
+    assert [e["detail"] for e in evs] == ["position 42, ETA 3m 00s", "position 7, ETA 30s"]
+    assert st.as_dict()["queue_position"] == 7 and st.as_dict()["queue_eta_s"] == 30
+    st.apply(gl.parse_line(LINES[7]))
+    assert st.as_dict()["queue_position"] is None and st.as_dict()["queue_name"] is None
+
+
+def test_hub_down_then_up():
+    st = gl.SessionState()
+    assert st.apply(gl.parse_line(HUB_UP)) == []  # first connect at login: not news
+    evs = st.apply(gl.parse_line(HUB_DOWN)) + st.apply(gl.parse_line(HUB_DOWN))
+    evs += st.apply(gl.parse_line(HUB_UP))
+    assert [e["type"] for e in evs] == ["SESSION_HUB_DOWN", "SESSION_HUB_UP"]
+    assert evs[0]["detail"] == "lost (status -3)" and st.as_dict()["hub"] == "up"
+
+
+def test_disconnects_expected_dropped_frontend_and_dedup():
+    st = gl.SessionState()
+    assert st.apply(gl.parse_line(dc("Nub destroyed", rules="SC_Frontend"))) == []  # menu channel: ignored
+    evs = st.apply(gl.parse_line(dc("DisconnectCmd: disconnect light ExitToMenu")))
+    evs += st.apply(gl.parse_line(dc("DisconnectCmd: disconnect light ExitToMenu", host="GameClient")))  # same one
+    evs += st.apply(gl.parse_line(dc("Remote Disconnect - Dup Login", ts="2026-01-01T12:00:00.000Z", up="59")))
+    assert [(e["type"], e["detail"]) for e in evs] == [
+        ("SESSION_DISCONNECT", "DisconnectCmd: disconnect light ExitToMenu (after 1h 02m)"),
+        ("SESSION_DROPPED", "Remote Disconnect - Dup Login (after 59s)")]
+    f = st.as_dict()
+    assert f["disconnects"] == 2 and f["last_disconnect_expected"] is False and f["last_disconnect_uptime_s"] == 59.0
+    pub = gl.public(f)
+    assert "SomeHandle" not in repr(pub) and "192.0.2.7" not in repr(pub)
+
+
+@pytest.mark.parametrize("s,out", [(None, None), (-1, None), (0, "0s"), (59.9, "59s"), (60, "1m 00s"),
+                                   (3725.5, "1h 02m")])
+def test_fmt_secs(s, out):
+    assert gl.fmt_secs(s) == out

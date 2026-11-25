@@ -100,6 +100,8 @@ server.game.telemetry.enabled = 1
 ```
 Failure hint: `gRPC telemetry service NOT running (set grpc-client-server-enabled true).`
 
+**PTU 5.0.202.35026 (CL 13273298, 2026-11-24): service does not start.** Same startup settings as CL 13248297 (`[Env Var] GRPC_CLIENT_SERVER_ENABLED=true`, `[User CFG] server.game.telemetry.enabled=true`), but the log shows `<Server Started> No Star Engine services started.` then `<GRPC Server> No services configured`, no `Register Service` line, and nothing listens on the port. The setting names in the exe are unchanged; the cause is unknown (possibly a server-side switch). Untested: toggling `server.game.telemetry.enabled` at runtime (its help text says "Turning it on starts that server"). The schema for this build is additive only, see §7.
+
 **LIVE 4.10 differences:** LIVE has the stream only, with no trigger RPCs. It uses `grpc-client-server-address` instead of port/external, and it has no `server.game.telemetry.enabled` setting. This setup has not been tested on LIVE.
 
 ---
@@ -261,6 +263,7 @@ asyncio.run(main())
 |---|---|---|---|
 | LIVE 4.10.0 (CL 13220821) | ✔ | ✘ | baseline |
 | PTU 5.0.0 (CL 13248297) | ✔ | ✔ | `VehicleShields`, `VehicleState.health`, `VehicleMasterMode(State)`, `TriggerGameActionStatus`, trigger RPCs |
+| PTU 5.0.0 (CL 13273298) | ✘ service not started (§2) | ✘ | `TelemetryStreamResponse.header` (`FrameHeader`: sequence, game time) and `.game` (`GameFrame`: `GameState`, menu, mode, `GameDebugInfo` with fps, frame/thread/GPU ms, VRAM, ping/loss/bandwidth, server fps/hitches, shard id/name), `VehicleState.quantum_travel` (`QuantumTravelState`, spool, calibration, destination, ETA, distance), `ActorState.operator_mode` / `.location` (hierarchy, jurisdiction, armistice) / `.tracked_contract` / `.crime_stat` / `.player_name`. `quantum_fuel`, `altitude`, `VehicleState.health` became `optional` (absent instead of 0 / FLT_MAX). No removals or renumbering. |
 
 After each patch the schema is re-extracted automatically: each build gets its own cache key, `<Branch>-<RequestedP4ChangeNum>` from `build_manifest.id`. To see what changed, regenerate the reference:
 ```bash
@@ -384,9 +387,12 @@ Per mode: grpc uses `--game-log` or the channel default; `--mock` always serves 
 | `session_id`, `env_session` | `[Trace] @session: '...'`, `[Trace] @env_session: '...'` |
 | `shard`, `server_address`, `server_port`, `location_id`, `joined_at` | `[Notice] <Join PU> address[..] port[..] shard[..] locationId[..]` |
 | `shard` (update) | `[Notice] <Update Shard Id> New Shard Id: <shard>.` |
-| `region_code`, `region_name`, `shard_short` | parsed from the shard name `<env>_<region>_<build>_<n>`: `ptu_use1b_13248297_020` -> `use1b`, `US East`, `USE1B · 020`. Known prefixes: `use1` US East, `usw2` US West, `euw1` EU West, `euc1` EU Central, `apse2` Asia-Pacific SE (Sydney), `apne1` Asia-Pacific NE (Tokyo); anything else is shown raw. |
+| `region_code`, `region_name`, `shard_short` | parsed from the shard name `<env>_<region>_<build>_<n>`: `ptu_use1b_13248297_020` -> `use1b`, `US East`, `USE1B · 020`. Known prefixes: `use1` US East, `usw2` US West, `euw1` EU West, `euc1` EU Central, `apse2` Asia-Pacific SE (Sydney), `apne1` Asia-Pacific NE (Tokyo), `ape1` Asia-Pacific East; anything else is shown raw. |
 | `system` | most recent `Loading screen for <X> : ... closed after N seconds`; `Frontend_*` maps to `Main menu` |
 | `log_started_at` | timestamp of `Log started on ...` |
+| `queue_name`, `queue_position`, `queue_eta_s`, `queue_at` | `<AccountLoginQueueStatus> ... queue name <name> - position <n> - eta (seconds) <n>`; cleared on `<Join PU>` |
+| `hub`, `hub_status`, `hub_at` | `<Hub> connected - initiate[n]` / `<Hub> disconnected - status[-n]` (backend login hub link): `up` / `down` |
+| `disconnects`, `last_disconnect_reason`, `last_disconnect_at`, `last_disconnect_uptime_s`, `last_disconnect_expected` | `<Channel Disconnected> cause=.. reason="..." ... gamerules="..." ... uptime_secs=..`, game-server channels only (`*_Frontend` ignored); one per disconnect (lines within 2 s merged). `expected` = your own quit (`Player requested disconnect`, `disconnect light ...`, `Nub destroyed`, shutdown). The line also holds addresses, session/node ids and your handle: the regex skips them and they are never stored. |
 | `source`, `log_found` | `game_log` or `mock`; whether the file currently exists |
 | `has_server_address`, `has_session_ids` | whether the private fields are set (served instead of the values) |
 | `log_age_s` | seconds since Game.log was last written (file mtime); `null` for mock / log not found |
@@ -395,7 +401,9 @@ Timestamps (`joined_at`, `log_started_at`) are the log's own ISO-8601 UTC string
 
 **Leaving.** A `Loading screen for Frontend_*` (Main menu) after a join ends the shard session: `shard`, `region_*`, `shard_short`, `server_*`, `location_id` and `joined_at` are cleared (build, channel and session ids stay until the next launch). The dashboard treats the session as **idle** when telemetry is stale and `log_age_s > 120` (game closed, or bridge started after the game): badge `IDLE`, panel and header dimmed, the "In session" timer frozen at the last log write.
 
-**Events.** Session changes are appended to the snapshot `events` list as `{id, t, type, detail}` with `type` one of `SESSION_JOIN` (every `<Join PU>`), `SESSION_SHARD_CHANGE` (an `Update Shard Id` naming a different shard than the current one) and `SESSION_SYSTEM` (the system changed) and `SESSION_LEAVE` (back to the main menu after a join; detail = the shard left). `t` is the log line's timestamp, so events from the initial full read carry their original time. `detail` is the shard plus region name, or the system name; it never carries the server address or session ids.
+**Events.** Session changes are appended to the snapshot `events` list as `{id, t, type, detail}` with `type` one of `SESSION_JOIN` (every `<Join PU>`), `SESSION_SHARD_CHANGE` (an `Update Shard Id` naming a different shard than the current one) and `SESSION_SYSTEM` (the system changed) and `SESSION_LEAVE` (back to the main menu after a join; detail = the shard left). `t` is the log line's timestamp, so events from the initial full read carry their original time. `detail` is the shard plus region name, or the system name; it never carries the server address or session ids. Also: `SESSION_QUEUE` (queue position changed; detail `position N, ETA 1m 52s`), `SESSION_HUB_DOWN` / `SESSION_HUB_UP` (hub link lost / back), `SESSION_DISCONNECT` (own quit) and `SESSION_DROPPED` (any other reason, e.g. `Remote Disconnect - player inactive` (AFK kick) or `Dup Login`; detail `<reason> (after <uptime>)`).
+
+**Not in Game.log** (checked across about 230 LIVE and the PTU logs, 2026-11-23): shard or server player counts, ping/latency and a readable server name. `<Population Manager Stats> players=N` (PTU 5.0) and `<ShardSeeding Success> ShardName[]` describe only the local menu instance; `<PlayerJoined>`/`<PlayerLeft>` are mission-party pushes.
 
 **Privacy.** `server_address`, `server_port`, `session_id` and `env_session` never appear in `/events`, `/api/snapshot` or `/api/session`; only `GET /api/session/private` returns them, behind the `/api/trigger` Host/Origin check (blocks DNS rebinding and other hosts; with `--host 0.0.0.0` only `localhost`/`127.0.0.1` pass). The dashboard fetches it only while a Reveal button is on. `--record` writes `{"t", "session"}` records with those four fields stripped (`gamelog.public()`), skipping identical consecutive sessions and the pre-first-poll placeholder; replay skips these records.
 
