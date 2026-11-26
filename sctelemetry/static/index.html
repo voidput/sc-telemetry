@@ -386,7 +386,9 @@ details.ctl-group>summary .micro{color:var(--color-text-base)}
 
 /* alerts: header sound toggle, toast stack, alerts panel */
 .snd-btn[aria-pressed=true]{color:var(--telemetry-nominal-ink);border-color:color-mix(in srgb,var(--telemetry-nominal),transparent 40%);background:color-mix(in srgb,var(--telemetry-nominal),transparent 86%)}
-.top .snd-btn{margin-left:auto;order:1}
+.top .snd-btn{order:1}
+.top #notifyBtn{margin-left:auto}
+.notify-toggle[aria-pressed=false]{color:var(--telemetry-warning-ink);border-color:color-mix(in srgb,var(--telemetry-warning),transparent 40%);background:color-mix(in srgb,var(--telemetry-warning),transparent 88%)}
 .toasts{position:fixed;top:calc(var(--hdr-h,96px) + 8px);right:16px;z-index:60;display:flex;flex-direction:column;gap:8px;width:min(380px,calc(100vw - 32px));pointer-events:none}
 .toast{--tone:var(--telemetry-info);--ink:var(--telemetry-info-ink);--frame:color-mix(in srgb,var(--tone),transparent 35%);pointer-events:auto;
   display:grid;grid-template-columns:1.6em minmax(0,1fr) max-content;gap:10px;align-items:start;padding:10px 12px;
@@ -453,6 +455,7 @@ details.ctl-group>summary .micro{color:var(--color-text-base)}
     <span class="kv1 sess"><span class="micro">SYSTEM</span><b id="hSystem">—</b></span>
   </div>
   </div>
+  <button class="btn snd-btn notify-toggle" id="notifyBtn" type="button" aria-pressed="true" title="Show alert pop-ups in this tab (alerts still go to the Recent list)">Pop-ups on</button>
   <button class="btn snd-btn snd-toggle" id="sndBtn" type="button" aria-pressed="false" title="Play alert sounds and speech in this tab (browsers need a click first)">Enable sound</button>
 </header>
 <div class="toasts" id="toasts" role="region" aria-label="Alert notifications"></div>
@@ -504,7 +507,7 @@ details.ctl-group>summary .micro{color:var(--color-text-base)}
   <div class="panels">
     <div class="stack stack-a">
       <section class="panel chamfer-md" aria-labelledby="h-pilot">
-        <header class="ph"><h2 id="h-pilot">Pilot</h2><div class="badges"><span class="badge" id="loco" data-tone="muted">—</span><span class="badge" id="role" data-tone="muted">—</span></div></header>
+        <header class="ph"><h2 id="h-pilot">Pilot</h2><div class="badges"><span class="badge" id="loco" data-tone="muted">—</span><span class="badge" id="role" data-tone="muted">—</span><span class="badge" id="opMode" data-tone="muted" hidden>—</span><span class="badge" id="crime" data-tone="muted" hidden>—</span></div></header>
         <p class="empty-note" id="pilotEmpty" hidden>Actor not reported by game.</p>
         <div id="vitals"></div>
         <dl class="kv">
@@ -517,7 +520,25 @@ details.ctl-group>summary .micro{color:var(--color-text-base)}
           <dt>Intoxication</dt><dd id="intox">—</dd>
           <dt>Seat</dt><dd id="seat">—</dd>
           <dt>Balance</dt><dd id="uec">—</dd>
+          <dt class="pnew" hidden>Player</dt><dd class="pnew" hidden><button class="reveal" id="pName" type="button" aria-pressed="false" title="Click to reveal your handle">Reveal</button></dd>
         </dl>
+        <div id="pilotLoc" hidden>
+          <h3 class="micro sub-h">Location</h3>
+          <dl class="kv">
+            <dt>Where</dt><dd id="pWhere">—</dd>
+            <dt>Jurisdiction</dt><dd id="pJur">—</dd>
+            <dt>Armistice</dt><dd id="pArm">—</dd>
+          </dl>
+          <h3 class="micro sub-h">Tracked contract</h3>
+          <p class="empty-note" id="pNoContract">No contract tracked.</p>
+          <dl class="kv" id="pContract" hidden>
+            <dt>Contract</dt><dd id="pCTitle">—</dd>
+            <dt>Giver</dt><dd id="pCGiver">—</dd>
+            <dt>Objective</dt><dd id="pCObj">—</dd>
+            <dt>Progress</dt><dd id="pCProg">—</dd>
+            <dt>Ends</dt><dd id="pCEnds">—</dd>
+          </dl>
+        </div>
       </section>
 
       <section class="panel chamfer-md" aria-labelledby="h-sys">
@@ -547,9 +568,44 @@ details.ctl-group>summary .micro{color:var(--color-text-base)}
             <dt>In session</dt><dd id="sDur">—</dd>
             <dt>Build</dt><dd id="sBuild">—</dd>
             <dt>Location id</dt><dd id="sLoc">—</dd>
+            <dt>Login queue</dt><dd id="sQueue">—</dd>
+            <dt>Backend hub</dt><dd id="sHub">—</dd>
+            <dt>Disconnects</dt><dd id="sDc">—</dd>
             <dt>Server</dt><dd><button class="reveal" id="sServer" type="button" aria-pressed="false" title="Click to reveal the server address">Reveal</button></dd>
             <dt>Session id</dt><dd><button class="reveal" id="sSession" type="button" aria-pressed="false" title="Click to reveal the session ids">Reveal</button></dd>
             <dt>Log started</dt><dd id="sLogStart">—</dd>
+          </dl>
+        </div>
+      </section>
+
+      <section class="panel chamfer-md" aria-labelledby="h-game" id="gamePanel" hidden>
+        <header class="ph"><h2 id="h-game">Game</h2><div class="badges"><span class="badge" id="gState" data-tone="muted">—</span><span class="badge" id="gMenu" data-tone="muted" hidden>MENU</span></div></header>
+        <dl class="kv">
+          <dt>Mode</dt><dd id="gMode">—</dd>
+          <dt>Frame seq</dt><dd id="gSeq">—</dd>
+        </dl>
+        <p class="ctl-note" id="gNoDebug">Performance stats off. Enable them with <code>server.game.telemetry.debug.displayinfo</code>.</p>
+        <div id="gDebug" hidden>
+          <h3 class="micro sub-h">Client</h3>
+          <dl class="kv">
+            <dt>FPS</dt><dd id="gFps">—</dd>
+            <dt>CPU main / render</dt><dd id="gCpu">—</dd>
+            <dt>GPU</dt><dd id="gGpu">—</dd>
+            <dt>VRAM</dt><dd id="gVram">—</dd>
+          </dl>
+          <h3 class="micro sub-h">Network</h3>
+          <dl class="kv">
+            <dt>Ping</dt><dd id="gPing">—</dd>
+            <dt>Packet loss</dt><dd id="gLoss">—</dd>
+            <dt>In / out</dt><dd id="gBw">—</dd>
+          </dl>
+          <h3 class="micro sub-h">Server</h3>
+          <dl class="kv">
+            <dt>Server FPS</dt><dd id="gSfps">—</dd>
+            <dt>Frame time</dt><dd id="gSft">—</dd>
+            <dt>Hitches</dt><dd id="gHitch">—</dd>
+            <dt>Shard</dt><dd id="gShard">—</dd>
+            <dt>Universe time</dt><dd id="gUtime">—</dd>
           </dl>
         </div>
       </section>
@@ -557,7 +613,7 @@ details.ctl-group>summary .micro{color:var(--color-text-base)}
 
     <div class="stack stack-b">
       <section class="panel chamfer-md" aria-labelledby="h-ship">
-        <header class="ph"><h2 id="h-ship">Ship</h2><div class="badges"><span class="badge" id="mm" data-tone="muted">—</span><span class="badge" id="spool" data-tone="muted" hidden>—</span></div></header>
+        <header class="ph"><h2 id="h-ship">Ship</h2><div class="badges"><span class="badge" id="mm" data-tone="muted">—</span><span class="badge" id="spool" data-tone="muted" hidden>—</span><span class="badge" id="qtBadge" data-tone="muted" hidden>—</span></div></header>
         <p class="empty-note" id="shipEmpty" hidden>No vehicle reported.</p>
         <div class="ident"><div class="ident-name" id="shipName">—</div><div class="ident-sub micro" id="shipSub">—</div></div>
         <div class="badges" id="shipBadges">
@@ -577,6 +633,16 @@ details.ctl-group>summary .micro{color:var(--color-text-base)}
           <dt id="doorsL">Doors</dt><dd id="doors">—</dd>
           <dt>Type</dt><dd id="vtype">—</dd>
         </dl>
+        <div id="shipQt" hidden>
+          <h3 class="micro sub-h">Quantum travel</h3>
+          <dl class="kv">
+            <dt>State</dt><dd id="qtState">—</dd>
+            <dt>Spool / calibration</dt><dd id="qtSpool">—</dd>
+            <dt>Destination</dt><dd id="qtDest">—</dd>
+            <dt>ETA</dt><dd id="qtEta">—</dd>
+            <dt>Remaining</dt><dd id="qtDist">—</dd>
+          </dl>
+        </div>
       </section>
 
       <section class="panel chamfer-md" aria-labelledby="h-wpn">
@@ -634,12 +700,14 @@ details.ctl-group>summary .micro{color:var(--color-text-base)}
       </div>
       <div class="stack stack-c2">
         <section class="panel chamfer-md" aria-labelledby="h-alerts" id="alertsPanel">
-          <header class="ph"><h2 id="h-alerts">Alerts</h2><div class="badges"><span class="badge" id="alRoute" data-tone="muted">AUDIO —</span><span class="badge" id="alMuted" data-tone="warning" hidden>MUTED</span></div></header>
+          <header class="ph"><h2 id="h-alerts">Alerts</h2><div class="badges"><span class="badge" id="alRoute" data-tone="muted">AUDIO —</span><span class="badge" id="alMuted" data-tone="warning" hidden>MUTED</span><span class="badge" id="alPopOff" data-tone="warning" hidden>POP-UPS OFF</span></div></header>
           <p class="ctl-note" id="alNote" role="status" aria-live="polite">Loading alerts…</p>
           <div class="al-ctl">
             <button class="btn snd-toggle" type="button" aria-pressed="false">Enable sound</button>
             <label class="grp"><span class="micro">Audio</span><select id="alMode" aria-label="Alert audio mode">
               <option value="auto">auto</option><option value="bridge">bridge</option><option value="browser">browser</option><option value="off">off</option></select></label>
+            <label class="grp"><span class="micro">Pop-ups</span><select id="alNotify" aria-label="Which alerts show a pop-up in this tab">
+              <option value="all">all</option><option value="warn">warning +</option><option value="critical">critical only</option><option value="off">off</option></select></label>
             <div class="grp" role="group" aria-label="Mute alert audio"><span class="micro">Mute</span>
               <button class="btn" type="button" data-min="5">5 min</button><button class="btn" type="button" data-min="15">15 min</button>
               <button class="btn" type="button" data-min="60">60 min</button><button class="btn" type="button" data-min="0" id="alUnmute" hidden>Unmute</button></div>
@@ -914,7 +982,20 @@ globalThis.StateLogic = (() => {
     });
   }
 
-  return { MODE_CAP, getPath, groupPath, stateFor, fmtValue, indexMap, isStateless, litFor, buttonView, faceLayout, faceStates };
+  // game keybind info (/api/actions `keybind`, from sc-gamedata game-keybinds.json) -> tooltip text, or "" when none
+  const KB_DEVICE = { keyboard: "Keyboard", mouse: "Mouse", gamepad: "Gamepad", joystick: "Joystick" };
+  function keybindTip(kb) {
+    if (!kb || typeof kb !== "object") return "";
+    const lines = [];
+    if (typeof kb.label === "string" && kb.label) lines.push(kb.label);
+    const d = kb.defaults && typeof kb.defaults === "object" ? kb.defaults : {};
+    const keys = Object.keys(KB_DEVICE).filter(k => Array.isArray(d[k]) && d[k].some(x => typeof x === "string" && x))
+      .map(k => KB_DEVICE[k] + ": " + d[k].filter(x => typeof x === "string" && x).map(x => x.toUpperCase()).join(", "));
+    lines.push(keys.length ? "Default: " + keys.join(" · ") : "No default binding");
+    return lines.join("\n");
+  }
+  return { MODE_CAP, getPath, groupPath, stateFor, fmtValue, indexMap, isStateless, litFor, buttonView, faceLayout, faceStates,
+    keybindTip };
 })();
 </script>
 <script id="alert-logic">
@@ -992,7 +1073,17 @@ globalThis.AlertLogic = (() => {
     }
     return ["AUDIO OFF", "muted"];
   }
-  return { SEV, LABEL, ICON, TTL_MS, TONES, tonesFor, toneLength, shouldPlay, alertKey, canClaim, ToastStack, routeText };
+  // pop-up level for this tab: all | warn (warning + critical) | critical | off. Unknown -> all.
+  const NOTIFY_LEVELS = ["all", "warn", "critical", "off"];
+  const notifyLevel = v => (NOTIFY_LEVELS.includes(v) ? v : "all");
+  function toastAllowed(level, severity) {
+    level = notifyLevel(level);
+    if (level === "off") return false;
+    if (level === "all") return true;
+    return SEV[sevOf(severity)] >= SEV[level];
+  }
+  return { SEV, LABEL, ICON, TTL_MS, TONES, tonesFor, toneLength, shouldPlay, alertKey, canClaim, ToastStack, routeText,
+    NOTIFY_LEVELS, notifyLevel, toastAllowed };
 })();
 </script>
 <script>
@@ -1007,7 +1098,7 @@ const arr = v => (Array.isArray(v) ? v : []);
 
 const PREFIXES = ["ACTOR_LOCOMOTION_STATE_", "ACTOR_CREW_ROLE_", "VEHICLE_TYPE_", "VEHICLE_MASTER_MODE_",
   "VEHICLE_COMPONENT_DEPLOYMENT_STATE_", "ANNUNCIATOR_STATE_", "COUNTERMEASURE_TYPE_", "GAME_EVENT_TYPE_",
-  "DOOR_OPEN_STATE_", "DOOR_LOCK_STATE_"];
+  "DOOR_OPEN_STATE_", "DOOR_LOCK_STATE_", "ACTOR_OPERATOR_MODE_", "QUANTUM_TRAVEL_STATE_", "GAME_STATE_"];
 function short(v) {
   if (typeof v !== "string" || !v) return null;
   for (const p of PREFIXES) if (v.startsWith(p)) { v = v.slice(p.length); break; }
@@ -1029,6 +1120,16 @@ function fmtDist(m) {
   if (a >= 10000) return (m / 1000).toFixed(1) + " km";
   return m.toFixed(a < 100 ? 1 : 0) + " m";
 }
+// QT distances: Gm / Mm / km like the in-game HUD
+function fmtFar(m) {
+  if (!isNum(m)) return null;
+  const a = Math.abs(m);
+  if (a >= 1e9) return (m / 1e9).toFixed(2) + " Gm";
+  if (a >= 1e6) return (m / 1e6).toFixed(1) + " Mm";
+  return fmtDist(m);
+}
+// int64/uint64 arrive as JSON strings
+const int64 = v => (v == null || v === "" ? null : isNum(Number(v)) ? Number(v) : null);
 function fmtUec(s) {
   if (s == null || s === "") return null;
   try { return BigInt(String(s)).toLocaleString("en-US") + " aUEC"; } catch (e) { return String(s) + " aUEC"; }
@@ -1378,6 +1479,9 @@ const SESSION_EV = {
 const SIGNAL_EV = {
   NEARBY_SHIP: ["◎", "Nearby: ", "info"], QT_ARRIVED: ["⇲", "", "info"], VEHICLE_RELEASED: ["⏏", "", "session"],
   CORPSE_ITEMS: ["⚰", "", "session"], ZONE: ["◈", "Zone: ", "session"],
+  SESSION_QUEUE: ["⧗", "Login queue: ", "session"], SESSION_DISCONNECT: ["⇤", "Disconnected: ", "session"],
+  SESSION_DROPPED: ["⚠", "Dropped: ", "warning"], SESSION_HUB_DOWN: ["⚠", "Backend hub ", "warning"],
+  SESSION_HUB_UP: ["✓", "Backend hub ", "nominal"],
 };
 const ALERT_SEV = { info: "info", warn: "warning", critical: "critical" };
 const ZONE_SEV = { armistice: "nominal", ungoverned: "warning", monitored: "info", jurisdiction: "info" };
@@ -1613,7 +1717,8 @@ function loadActions() {
     .then(d => {
       const list = Array.isArray(d?.actions) ? d.actions : [];
       CTL.actions = list.filter(a => a && typeof a.action_name === "string" && /^[a-z0-9_]{1,64}$/.test(a.action_name))
-        .map(a => ({ action_name: a.action_name, category: typeof a.category === "string" && a.category ? a.category : "other", holdable: a.holdable === true }));
+        .map(a => ({ action_name: a.action_name, category: typeof a.category === "string" && a.category ? a.category : "other", holdable: a.holdable === true,
+          keybind: a.keybind && typeof a.keybind === "object" ? a.keybind : null }));
       if (Array.isArray(d?.dangerous) && d.dangerous.length) CTL.dangerous = new Set(d.dangerous.filter(x => typeof x === "string"));
       CTL.source = typeof d?.source === "string" ? d.source : "";
       CTL.error = typeof d?.error === "string" ? d.error : null;
@@ -1633,7 +1738,7 @@ function loadActions() {
 }
 
 function buildControls() {
-  const sig = CTL.actions.map(a => a.action_name + (a.holdable ? "*" : "") + "@" + a.category).join(",") + "|" + [...CTL.dangerous].join(",");
+  const sig = CTL.actions.map(a => a.action_name + (a.holdable ? "*" : "") + (a.keybind ? "~" : "") + "@" + a.category).join(",") + "|" + [...CTL.dangerous].join(",");
   if (sig === CTL.sig) return;
   CTL.sig = sig; disarm();
   const box = $("ctlGroups"), open = {};
@@ -1685,6 +1790,8 @@ function mkCtlBtn(a, danger) {
   if (b.holdable) el.dataset.hold = "";
   b.aria = actionLabel(a.action_name) + (danger ? " (dangerous, two-step confirm)" : b.holdable ? " (tap, or press and hold to send a timed hold)" : "");
   el.setAttribute("aria-label", b.aria);
+  const kbTip = StateLogic.keybindTip(a.keybind);
+  if (kbTip) el.title = kbTip;   // game label + default keys (sc-gamedata keybinds), hover only
   CTL.btns[a.action_name] = b;
   idleBtn(b);
   // key auto-repeat must never activate: a held Enter would otherwise re-click every repeat
@@ -2193,6 +2300,17 @@ function renderSession(ss) {
     idle ? "Game.log idle for " + fmtDur(ss.log_age_s * 1000) + " and no telemetry: session not live" : "");
   T($("sBuild"), ss.build);
   T($("sLoc"), ss.location_id);
+  // queue: only while waiting (cleared on Join PU); hub: backend login link; disconnects: game-server channel
+  T($("sQueue"), isNum(ss.queue_position) ? "#" + ss.queue_position + (isNum(ss.queue_eta_s) ? " · ETA " + fmtDur(ss.queue_eta_s * 1000) : "") : null,
+    ss.queue_name ? "Queue \"" + ss.queue_name + "\"" : "");
+  const hd = $("sHub");
+  T(hd, ss.hub === "down" ? "LOST" + (isNum(ss.hub_status) ? " (" + ss.hub_status + ")" : "") : ss.hub === "up" ? "connected" : null);
+  hd.classList.toggle("warn", ss.hub === "down");
+  const dd = $("sDc"), n = isNum(ss.disconnects) ? ss.disconnects : 0, dropped = ss.last_disconnect_expected === false;
+  const up = isNum(ss.last_disconnect_uptime_s) ? fmtDur(ss.last_disconnect_uptime_s * 1000) : null;
+  T(dd, n ? n + " · " + (dropped ? "last dropped" : "last: quit") : "none",
+    ss.last_disconnect_reason ? "Last: " + ss.last_disconnect_reason + (up ? " after " + up : "") : "");
+  dd.classList.toggle("warn", dropped);
   const key = sessKey(ss), want = (revealed.sServer && ss.has_server_address) || (revealed.sSession && ss.has_session_ids);
   if (want && key !== privKey) { priv = null; loadPrivate(key); }
   const p = privKey === key ? priv : null;
@@ -2270,6 +2388,45 @@ function renderPilot(f) {
   const loco = short(st?.locomotion), role = short(st?.crew_role);
   badge($("loco"), loco || "—", loco ? "info" : "muted");
   badge($("role"), role && role !== "UNSPECIFIED" ? role : "NO ROLE", role && role !== "UNSPECIFIED" ? "info" : "muted");
+  renderPilotNew(st);
+}
+
+// CL 13273298+ actor fields; crime_stat/player_name are always printed on that schema, so they mark it
+let nameRevealed = false;
+$("pName").addEventListener("click", () => { nameRevealed = !nameRevealed; scheduleRender(); });
+const CRIME_TONE = n => (n >= 3 ? "critical" : n >= 1 ? "warning" : "nominal");
+function renderPilotNew(st) {
+  const newer = !!st && ("crime_stat" in st || "player_name" in st);
+  for (const el of document.querySelectorAll(".pnew")) H(el, !newer);
+  H($("pilotLoc"), !newer);
+  const op = short(st?.operator_mode), opEl = $("opMode");
+  H(opEl, !op);
+  if (op) badge(opEl, op === "UNSPECIFIED" || op === "INACTIVE" ? "NO OP MODE" : op, op === "UNSPECIFIED" || op === "INACTIVE" ? "muted" : "info");
+  const cs = newer ? num(st.crime_stat) : null, csEl = $("crime");
+  H(csEl, cs == null);
+  if (cs != null) { badge(csEl, cs ? "CS " + cs : "NO CS", CRIME_TONE(cs)); A(csEl, "title", "CrimeStat " + cs); }
+  if (!newer) return;
+  const nm = (st.player_name || "").trim(), pb = $("pName"), on = nameRevealed && !!nm;
+  A(pb, "aria-pressed", on ? "true" : "false"); pb.disabled = !nm;
+  T(pb, !nm ? "—" : on ? nm : "Reveal", !nm ? "" : on ? "Click to hide" : "Click to reveal your handle");
+  const loc = st.location, hier = arr(loc?.hierarchy).map(x => x?.display_name || x?.id).filter(Boolean);
+  T($("pWhere"), hier.join(" › ") || null, arr(loc?.hierarchy).map(x => x?.id).filter(Boolean).join(" / "));
+  const jur = loc?.jurisdiction;
+  T($("pJur"), jur ? jur.display_name || jur.id : null, jur?.id || "");
+  const arm = $("pArm");
+  if (loc && typeof loc.armistice_zone === "boolean") { T(arm, loc.armistice_zone ? "yes · weapons locked" : "no"); A(arm, "class", loc.armistice_zone ? null : "warn"); }
+  else { T(arm, null); A(arm, "class", null); }
+  const cd = st.tracked_contract?.details;
+  H($("pNoContract"), !!cd); H($("pContract"), !cd);
+  if (cd) {
+    T($("pCTitle"), cd.title || cd.contract_id || null, cd.contract_id || "");
+    T($("pCGiver"), cd.giver_name || null);
+    T($("pCObj"), cd.current_objective?.text || null);
+    const done = num(cd.objectives_completed), tot = num(cd.objectives_total);
+    T($("pCProg"), tot ? (done ?? 0) + " / " + tot + " objectives" : null);
+    const ends = int64(cd.ends_at_unix_ms), left = ends != null ? ends - Date.now() : null;
+    T($("pCEnds"), ends == null ? null : left > 0 ? "in " + fmtDur(left) : "expired", ends == null ? "" : new Date(ends).toLocaleString());
+  }
 }
 
 function renderShip(f) {
@@ -2299,12 +2456,14 @@ function renderShip(f) {
   setMeter(SM.hydrogen, isNum(ins?.hydrogen_fuel) ? ins.hydrogen_fuel * 100 : null);
   const q = num(ins?.quantum_fuel);
   if (q != null && q > 0) quantumSeen = true;
-  if (q == null || !quantumSeen) { setMeter(SM.quantum, null, q === 0 ? "—" : null); A(SM.quantum.row, "title", q === 0 ? "Game reports 0 and it has never changed: likely not reported" : null); }
+  const noQd = !!ins && !("quantum_fuel" in ins);   // optional since CL 13273298: absent = no quantum drive / unknown
+  if (q == null || !quantumSeen) { setMeter(SM.quantum, null, q === 0 || noQd ? "—" : null); A(SM.quantum.row, "title", noQd ? "Not reported: no quantum drive (or unknown)" : q === 0 ? "Game reports 0 and it has never changed: likely not reported" : null); }
   else { setMeter(SM.quantum, q * 100); A(SM.quantum.row, "title", null); }
 
   const alt = ins?.altitude, ralt = ins?.radar_altitude;
   const altEl = $("alt");
   if (ins && typeof alt === "number" && !isNum(alt)) T(altEl, "DEEP SPACE", "No planetary reference (game sends FLT_MAX)");
+  else if (ins && !("altitude" in ins)) T(altEl, "DEEP SPACE", "No reference body (altitude absent)");
   else T(altEl, fmtDist(num(alt)), "");
   const raEl = $("ralt");
   if (ins && typeof ralt === "number" && !isNum(ralt)) T(raEl, "— (no ground)", "No ground return");
@@ -2317,6 +2476,58 @@ function renderShip(f) {
   H($("doorsL"), !doors); H($("doors"), !doors);
   if (doors) T($("doors"), [short(doors.open_state), short(doors.lock_state)].filter(x => x && x !== "UNSPECIFIED").join(" · ") || null);
   T($("vtype"), short(vs?.type));
+  renderQt(vs?.quantum_travel);
+}
+
+const QT_TONE = { IDLE: "muted", OFF: "muted", ALIGNING: "warning", TRAVELING: "info", COOLDOWN: "warning" };
+function renderQt(qt) {
+  H($("shipQt"), !qt);
+  const st = short(qt?.state), b = $("qtBadge"), show = !!st && st !== "UNSPECIFIED" && st !== "OFF" && st !== "IDLE";
+  H(b, !show);
+  if (show) badge(b, st === "TRAVELING" ? "QT" : "QT " + st, QT_TONE[st] || "muted");
+  if (!qt) return;
+  T($("qtState"), st);
+  const sp = pct01(qt.spool_ratio), ca = pct01(qt.calibration_ratio);
+  T($("qtSpool"), sp == null && ca == null ? null : (sp ?? "—") + "% / " + (ca ?? "—") + "%");
+  T($("qtDest"), qt.destination ? qt.destination.display_name || qt.destination.id : null, qt.destination?.id || "");
+  T($("qtEta"), isNum(qt.eta_seconds) ? fmtDur(qt.eta_seconds * 1000) : null);
+  T($("qtDist"), fmtFar(num(qt.remaining_distance_m)));
+}
+
+// CL 13273298+ game frame; debug stats only with server.game.telemetry.debug.displayinfo
+function renderGame(f) {
+  const g = f?.game, hd = f?.header;
+  H($("gamePanel"), !g && !hd);
+  if (!g && !hd) return;
+  const st = short(g?.state);
+  badge($("gState"), st && st !== "UNSPECIFIED" ? st : "—", st === "IN GAME" ? "nominal" : st === "LOADING" ? "warning" : "muted");
+  H($("gMenu"), g?.menu_open !== true);
+  T($("gMode"), g?.game_mode || null);
+  T($("gSeq"), hd?.sequence != null ? String(hd.sequence) : null, int64(hd?.game_time_unix_ms) != null ? "Game time " + new Date(int64(hd.game_time_unix_ms)).toLocaleString() : "");
+  const d = g?.debug;
+  H($("gNoDebug"), !!d || !g); H($("gDebug"), !d);
+  if (!d) return;
+  const ms = v => (isNum(v) ? v.toFixed(1) + " ms" : null);
+  const fps = num(d.fps), fEl = $("gFps");
+  T(fEl, fps == null ? null : Math.round(fps) + (isNum(d.frame_time_ms) ? " · " + d.frame_time_ms.toFixed(1) + " ms" : ""));
+  A(fEl, "class", fps != null && fps < 30 ? "warn" : null);
+  T($("gCpu"), isNum(d.main_thread_ms) || isNum(d.render_thread_ms) ? (ms(d.main_thread_ms) || "—") + " / " + (ms(d.render_thread_ms) || "—") : null);
+  T($("gGpu"), ms(d.gpu_ms));
+  const vr = d.vram;
+  T($("gVram"), vr && isNum(vr.used_mb) ? (vr.used_mb / 1024).toFixed(1) + (isNum(vr.budget_mb) && vr.budget_mb ? " / " + (vr.budget_mb / 1024).toFixed(1) : "") + " GB" : null);
+  const n = d.network, ping = num(n?.ping_ms), pEl = $("gPing");
+  T(pEl, ping == null ? null : Math.round(ping) + " ms"); A(pEl, "class", ping != null && ping > 150 ? "warn" : null);
+  const loss = num(n?.packet_loss_percent), lEl = $("gLoss");
+  T(lEl, loss == null ? null : loss.toFixed(1) + " %"); A(lEl, "class", loss > 1 ? "warn" : null);
+  const kb = v => (isNum(v) ? (v / 1000).toFixed(0) + " kbit/s" : "—");
+  T($("gBw"), n && (isNum(n.bits_per_second_in) || isNum(n.bits_per_second_out)) ? kb(n.bits_per_second_in) + " / " + kb(n.bits_per_second_out) : null);
+  const sv = d.server, sf = num(sv?.fps), sEl = $("gSfps");
+  T(sEl, sf == null ? null : Math.round(sf)); A(sEl, "class", sf != null && sf < 10 ? "warn" : null);
+  T($("gSft"), sv && (isNum(sv.min_frame_time_ms) || isNum(sv.max_frame_time_ms)) ? (ms(sv.min_frame_time_ms) || "—") + " – " + (ms(sv.max_frame_time_ms) || "—") : null);
+  T($("gHitch"), isNum(sv?.hitch_count) ? String(sv.hitch_count) : null);
+  T($("gShard"), d.shard_name || d.shard_id || null, d.shard_id || "");
+  const ut = int64(d.universe_time_unix_ms);
+  T($("gUtime"), ut == null ? null : new Date(ut).toLocaleString("en-GB", { hour12: false }));
 }
 
 // game-data capabilities (sc-gamedata via the bridge); text always present, never colour-only
@@ -2428,7 +2639,7 @@ function render() {
   rafPending = false;
   renderHeader();
   const f = snap?.frame || null;
-  renderHero(f); renderPilot(f); renderShip(f); renderShields(f); renderSystems(f); renderWeapons(f); renderFF(f);
+  renderHero(f); renderPilot(f); renderShip(f); renderShields(f); renderSystems(f); renderWeapons(f); renderFF(f); renderGame(f);
   renderControls(f);
   renderSession(snap?.session || null);
   renderNearby(snap?.signals || null, !!(snap?.session && sessionIdle(snap.session)));
@@ -2606,13 +2817,43 @@ function onAlertMsg(ev) {
     const k = AL.alertKey(a);
     if (seenAlerts.has(k)) return;
     seenAlerts.add(k); if (seenAlerts.size > 300) seenAlerts.delete(seenAlerts.values().next().value);
-    TOASTS.add(a, Date.now()); renderToasts(); addRecent(a);
+    addRecent(a);
+    if (!AL.toastAllowed(NOTIFY.level, a.severity)) return;   // pop-ups filtered in this tab; Recent keeps it
+    TOASTS.add(a, Date.now()); renderToasts();
     T($(a.severity === "critical" ? "alertLiveCrit" : "alertLive"), (AL.LABEL[a.severity] || "") + ": " + (a.text || ""));
   } else if (AL.shouldPlay(d, SND.enabled)) {
     if (SND.ctx && SND.ctx.state === "suspended") SND.ctx.resume();
     playAlert(a, !!d.preempt);
   }
 }
+
+// pop-up level, per browser (a convenience: falls back to "all" when storage is blocked)
+const NOTIFY_KEY = "sctelemetry.notify";
+const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* storage blocked: in-memory only */ } };
+const NOTIFY = { level: AL.notifyLevel(lsGet(NOTIFY_KEY)), last: AL.notifyLevel(lsGet(NOTIFY_KEY + ".last")) };
+if (NOTIFY.last === "off") NOTIFY.last = "all";
+function setNotify(level) {
+  level = AL.notifyLevel(level);
+  if (level !== "off") { NOTIFY.last = level; lsSet(NOTIFY_KEY + ".last", level); }
+  NOTIFY.level = level; lsSet(NOTIFY_KEY, level);
+  // drop pop-ups the new level would not have shown
+  let changed = false;
+  for (const t of TOASTS.list()) if (!AL.toastAllowed(level, t.severity)) changed = TOASTS.ack(t.key) || changed;
+  if (changed) renderToasts();
+  renderNotifyUI();
+}
+function renderNotifyUI() {
+  const lv = NOTIFY.level, on = lv !== "off", b = $("notifyBtn");
+  A(b, "aria-pressed", on ? "true" : "false");
+  T(b, on ? (lv === "all" ? "Pop-ups on" : lv === "warn" ? "Pop-ups: warn+" : "Pop-ups: critical") : "Pop-ups off",
+    on ? "Click to turn alert pop-ups off in this tab (alerts still go to the Recent list)" : "Click to turn alert pop-ups back on");
+  const sel = $("alNotify"); if (document.activeElement !== sel && sel.value !== lv) sel.value = lv;
+  H($("alPopOff"), on);
+}
+$("notifyBtn").addEventListener("click", () => setNotify(NOTIFY.level === "off" ? NOTIFY.last : "off"));
+$("alNotify").addEventListener("change", ev => setNotify(ev.target.value));
+renderNotifyUI();
 
 // alerts panel
 function loadAlerts() {

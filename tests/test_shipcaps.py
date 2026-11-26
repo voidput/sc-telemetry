@@ -77,6 +77,33 @@ def test_build_table_merges_variants_by_class():
     assert e["caps"]["guns"] and e["caps"]["mining"] is True and e["caps"]["cargo"] is True and e["caps"]["cargo_scu"] == 4.0
 
 
+def test_upstream_capabilities_take_precedence_per_key():
+    # upstream says no guns, has refuel + cargo; mining key missing -> derived (True from WeaponMining)
+    v = dict(MINER, capabilities={"guns": False, "refuel": True, "cargo": True, "cargo_scu": 32, "scan": "yes"})
+    c = sc.vehicle_caps(v)
+    assert c["guns"] is False and c["refuel"] is True and c["cargo"] is True and c["cargo_scu"] == 32.0
+    assert c["mining"] is True  # absent upstream -> derived
+    assert c["scan"] is True  # non-bool upstream value ignored -> derived
+    assert set(c) == set(sc.CAPS) | {"cargo_scu"}
+
+
+def test_upstream_cargo_unknown_and_scu_fallback():
+    v = dict(SALVAGER, capabilities={"cargoKnown": False, "cargo": True})
+    c = sc.vehicle_caps(v)
+    assert c["cargo"] is False and c["cargo_scu"] is None
+    w = dict(SALVAGER, capabilities={"salvage": False})  # no cargo info upstream -> derived SCU kept
+    c = sc.vehicle_caps(w, {"TEST_Salvager"})
+    assert c["cargo_scu"] == 12.0 and c["salvage"] is True  # salvage dataset list still adds salvage
+    assert sc.vehicle_caps(dict(MINER, capabilities="junk")) == sc.derive_caps(MINER)
+    assert sc.upstream_caps(MINER) is None
+
+
+def test_build_table_uses_upstream_capabilities():
+    t = sc.build_table(dataset(dict(GUNSHIP, capabilities={"emp": False, "missiles": False})))
+    caps = t["TEST_Gunship"]["caps"]
+    assert caps["emp"] is False and caps["missiles"] is False and caps["guns"] is True
+
+
 def write(p, data):
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(data), encoding="utf-8")
@@ -229,3 +256,13 @@ def test_manufacturer_codes_and_info_fields(tmp_path):
                                          "manufacturer_code": "aegs", "role": "Heavy Gunship", "career": "Combat",
                                          "size": 4, "crew": 5, "cargo_scu": None}
     assert caps.info("TEST_Bare")["size"] is None and caps.info("NOPE") is None and caps.info(None) is None
+
+
+def test_upstream_manufacturer_fields_win():
+    v = dict(MINER, manufacturer="misc", manufacturerCode="MISC", manufacturerName="Musashi Industrial & Starflight Concern")
+    assert sc.vehicle_manufacturer(v) == ("misc", "Musashi Industrial & Starflight Concern")
+    assert sc.vehicle_manufacturer(dict(MINER, manufacturerCode="RSI_2025", manufacturerName=" "))[0] == "rsi"
+    assert sc.vehicle_manufacturer(dict(MINER, manufacturerCode="RSI_2025", manufacturerName=" "))[1] == "Roberts Space Industries"
+    assert sc.vehicle_manufacturer(dict(MINER, manufacturer="drak")) == ("drak", "Drake Interplanetary")
+    t = sc.build_table(dataset(v))
+    assert t["TEST_Miner"]["manufacturer"] == "Musashi Industrial & Starflight Concern"

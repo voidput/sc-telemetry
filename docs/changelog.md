@@ -1,10 +1,26 @@
 ---
 title: Changelog
 tags: [docs]
-updated: 2026-11-21
+updated: 2026-11-25
 ---
 
 # Changelog
+
+## 2026-11-25
+- Opt-in game-data download (`--gamedata-fetch` / `$SCTELEMETRY_GAMEDATA_FETCH=1`, off by default; `sctelemetry/gamedata_hub.py`): reads the installed build from `<channel>/build_manifest.id` and fetches exactly that build's `game-ships` / `game-salvage` / `game-keybinds` JSON from the public voidput/sc-gamedata-dumps hub into `.tmp/gamedata/<channel>/`. Checks `_build`, `_schema`, and `build.json` size / sha256 when present; atomic writes; never another build. `--gamedata` disables it. Manual: `uv run python -m sctelemetry.gamedata_hub`. Report in `/api/ship` `gamedata.fetch`. Docs: [install.md](install.md), [telemetry/api-spec.md](telemetry/api-spec.md) §8.5.
+- Ship capabilities: a vehicle's upstream `capabilities` object (coming in sc-gamedata) wins per key over the local derivation; `cargoKnown: false` -> cargo unknown. Cache version 4.
+- Hub fetch re-downloads a dataset whose sha256 differs from the tag's `build.json` (tags get republished under the same name); `_build` only decides for tags without hashes. Manufacturer name/code prefer the dataset's `manufacturerName` / `manufacturerCode`. The salvage dataset's new `vehicles[]` list (34 on LIVE) feeds `salvage`. On both published tags, upstream and local capabilities give the same table (0 differences, PTU 1108 / LIVE 1104 classes).
+- `/api/actions` entries carry `keybind` (game label, actionmaps, activation mode, default inputs) from `game-keybinds.json` (`sctelemetry/keybinds.py`); dashboard Controls buttons show it as a tooltip. Tests: `tests/test_gamedata_hub.py`, `tests/test_keybinds.py`.
+
+## 2026-11-24
+- PTU 5.0.202.35026 (CL 13273298) schema: additive only. New `FrameHeader`, `GameFrame` (+ `GameDebugInfo`: fps, ping, server fps, shard), `VehicleQuantumTravel`, actor location / tracked contract / CrimeStat / operator mode / player name; `quantum_fuel`, `altitude`, `VehicleState.health` now `optional`. Regenerated [telemetry/api-reference.md](telemetry/api-reference.md) (new `NOTES`; `player_name` redacted like `uec_balance`); version table in [telemetry/api-spec.md](telemetry/api-spec.md) §7. `--mock` fills the new fields when the resolved schema has them.
+- Dashboard shows the new fields: Pilot panel gets operator mode + CrimeStat badges, a click-to-reveal player handle, location (hierarchy, jurisdiction, armistice) and tracked contract; Ship panel gets a QT badge and a quantum-travel block (state, spool/calibration, destination, ETA, remaining distance); new Game panel (state, menu, mode, frame seq, client/network/server debug stats). If `altitude` is missing the panel shows DEEP SPACE; if `quantum_fuel` is missing the meter shows `—`. Panels for fields an older schema lacks stay hidden. `--mock` no longer crashes on older cached schemas that have no `VehicleState.health`.
+- Alert pop-ups can be turned off per browser: a header button switches pop-ups on/off, and the Alerts panel has a level picker (all / warning + / critical only / off), saved in localStorage. Alerts still go to the Recent list. Audio mute is unchanged. Logic in `AlertLogic.toastAllowed`, tested in `tests/test_dashboard_js.py`.
+- On this build the game's gRPC service does not start (`No Star Engine services started`) with the previously working settings; documented in api-spec §2, cause open.
+
+## 2026-11-23
+- Game.log session: login queue position and ETA (`SESSION_QUEUE`), backend hub link (`SESSION_HUB_DOWN` / `SESSION_HUB_UP`), game-server disconnects with reason and uptime (`SESSION_DISCONNECT` for your own quit, `SESSION_DROPPED` otherwise). New session fields and dashboard rows (Login queue, Backend hub, Disconnects); default alert rules `session_dropped`, `session_hub_down` (warn + sound) and `session_hub_up`, `session_queue` (toast only). Region `ape1` named Asia-Pacific East. Tests in `tests/test_gamelog.py`.
+- Documented what Game.log does **not** have: shard player counts, ping, readable server names ([telemetry/api-spec.md](telemetry/api-spec.md)).
 
 ## 2026-11-21 (rename)
 - **Renamed scgameapi -> sc-telemetry**, hosted at https://github.com/voidput/sc-telemetry. Distribution `sc-telemetry`, package `sctelemetry/` (was `scgameapi/`; paths in older entries below refer to the old name), command `uv run sctelemetry`, env vars `SCTELEMETRY_*`.

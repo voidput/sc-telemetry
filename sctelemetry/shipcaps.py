@@ -7,7 +7,9 @@ without a dataset, capability gating is simply off.
 
 Source priority (first existing file wins), per channel:
   --gamedata PATH / $SCTELEMETRY_GAMEDATA (file or directory)
-  <repo>/.tmp/gamedata/<channel>/game-ships.json   (e.g. .tmp/gamedata/live/ or ptu/)
+  <repo>/.tmp/gamedata/<channel>/game-ships.json   (e.g. .tmp/gamedata/live/ or ptu/; filled by hand or by
+                                                    the opt-in dumps-hub fetch, gamedata_hub.py)
+A vehicle's upstream `capabilities` object (when sc-gamedata emits one) wins per key over derive_caps.
 The derived table is cached in <repo>/.tmp/ship-capabilities.json keyed by source path/mtime/size/build
 and reloaded when the source file's mtime changes. Pure functions below; ShipCaps holds the state.
 """
@@ -26,7 +28,7 @@ CAPS = ("mining", "salvage", "refuel", "tractor", "guns", "scan", "quantum", "qe
 SHIPS_FILE = "game-ships.json"
 SALVAGE_FILE = "game-salvage.json"
 CACHE_PATH = stubs.ROOT / ".tmp" / "ship-capabilities.json"
-CACHE_VERSION = 3  # 3: + manufacturer / size / crew per class (Nearby lookup info)
+CACHE_VERSION = 5  # 3: + manufacturer / size / crew per class (Nearby lookup info); 4: upstream `capabilities`; 5: upstream manufacturer name
 RECHECK_S = 5.0  # min seconds between mtime checks of the source file
 RECORD_PREFIX = "EntityClassDefinition."
 # dataset `manufacturer` codes -> names (the dataset carries only the code; `_2025`-style suffixes stripped)
@@ -88,8 +90,7 @@ def derive_caps(vehicle: dict, salvage_set: frozenset | set = frozenset()) -> di
     totals = vehicle.get("totals") if isinstance(vehicle.get("totals"), dict) else {}
     scu = totals.get("cargoScu")
     has_grid = _present(lo.get("cargoGrids"))
-    cargo_scu = round(float(scu), 2) if isinstance(scu, (int, float)) and not isinstance(scu, bool) and scu > 0 \
-        else None
+    cargo_scu = _num(scu)
     return {
         "mining": "WeaponMining" in wtypes or "mining" in role,
         # not weapon names: "Ardor-2 Salvaged Repeater" is a gun
@@ -105,6 +106,41 @@ def derive_caps(vehicle: dict, salvage_set: frozenset | set = frozenset()) -> di
         "cargo": cargo_scu is not None or has_grid,
         "cargo_scu": cargo_scu,
     }
+
+
+def _num(v) -> float | None:
+    return round(float(v), 2) if isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0 else None
+
+
+def upstream_caps(vehicle: dict) -> dict | None:
+    """`vehicle.capabilities` as sc-gamedata emits it (same keys as derive_caps, plus `cargoKnown`), or None
+    when absent / not an object. Only boolean flags count; a missing or non-bool flag stays None so the
+    caller falls back to the derived value for that key. `cargoKnown: false` -> cargo False, cargo_scu None."""
+    c = vehicle.get("capabilities")
+    if not isinstance(c, dict):
+        return None
+    out = {k: c[k] if isinstance(c.get(k), bool) else None for k in CAPS}
+    out["cargo_scu"] = _num(c.get("cargo_scu"))
+    if c.get("cargoKnown") is False:
+        out["cargo"], out["cargo_scu"] = False, None
+    return out
+
+
+def vehicle_caps(vehicle: dict, salvage_set: frozenset | set = frozenset()) -> dict:
+    """Upstream `capabilities` when present (per key), else derive_caps. The salvage dataset's ship list
+    still adds salvage; `cargo_scu` falls back to the derived total only when upstream has no cargo data
+    either way (no `cargo_scu` key and no `cargoKnown: false`)."""
+    derived = derive_caps(vehicle, salvage_set)
+    up = upstream_caps(vehicle)
+    if up is None:
+        return derived
+    out = {k: derived[k] if up[k] is None else up[k] for k in CAPS}
+    if class_of(vehicle.get("recordName")) in salvage_set:
+        out["salvage"] = True
+    raw = vehicle["capabilities"]
+    out["cargo_scu"] = up["cargo_scu"] if ("cargo_scu" in raw or raw.get("cargoKnown") is False) \
+        else derived["cargo_scu"]
+    return out
 
 
 def _merge(a: dict, b: dict) -> dict:
@@ -124,6 +160,16 @@ def manufacturer_of(code) -> tuple[str | None, str | None]:
     return c, MANUFACTURERS.get(c, c.upper())
 
 
+def vehicle_manufacturer(v: dict) -> tuple[str | None, str | None]:
+    """(code, name) for a dataset vehicle. Upstream `manufacturerCode` / `manufacturerName` (sc-gamedata,
+    e.g. "RSI_2025" / "Roberts Space Industries") win; the code keeps this API's form (lower case, `_2025`
+    suffix stripped). Fallback: the `manufacturer` code + the MANUFACTURERS table."""
+    code, name = manufacturer_of(v.get("manufacturerCode") if isinstance(v.get("manufacturerCode"), str)
+                                 and v["manufacturerCode"].strip() else v.get("manufacturer"))
+    up = v.get("manufacturerName")
+    return code, (up.strip() if isinstance(up, str) and up.strip() else name)
+
+
 def _pos_int(v) -> int | None:
     return v if isinstance(v, int) and not isinstance(v, bool) and v > 0 else None
 
@@ -139,7 +185,7 @@ def build_table(ships: dict, salvage: dict | None = None) -> dict[str, dict]:
         cls = class_of(v.get("recordName"))
         if not cls:
             continue
-        caps = derive_caps(v, sal)
+        caps = vehicle_caps(v, sal)
         name = v.get("displayName") or v.get("name") or cls
         if cls in table:
             table[cls]["caps"] = _merge(table[cls]["caps"], caps)
@@ -148,8 +194,8 @@ def build_table(ships: dict, salvage: dict | None = None) -> dict[str, dict]:
         table[cls] = {"class": cls, "display_name": name if isinstance(name, str) else cls,
                       "role": v.get("role") if isinstance(v.get("role"), str) else None,
                       "career": v.get("career") if isinstance(v.get("career"), str) else None,
-                      "manufacturer_code": manufacturer_of(v.get("manufacturer"))[0],
-                      "manufacturer": manufacturer_of(v.get("manufacturer"))[1],
+                      "manufacturer_code": vehicle_manufacturer(v)[0],
+                      "manufacturer": vehicle_manufacturer(v)[1],
                       "size": _pos_int(v.get("size")), "crew": _pos_int(v.get("crewSize")),
                       "caps": caps, "variants": 1}
     return table

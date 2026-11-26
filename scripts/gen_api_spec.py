@@ -95,10 +95,33 @@ NOTES = {
     ("AxisFeedback", "resistance"): "Stick spring resistance (assumed 0..1).",
     ("AxisFeedback", "damping"): "Stick damping (assumed 0..1).",
     ("TurretFrame", "light_amplification"): "Night vision active.",
+    # PTU 5.0 CL 13273298+ (schema only; not yet observed live)
+    ("TelemetryStreamResponse", "header"): "Per-frame sequence + game time. CL 13273298+.",
+    ("TelemetryStreamResponse", "game"): "Game/session state; debug stats need server.game.telemetry.debug.displayinfo. CL 13273298+.",
+    ("FrameHeader", "sequence"): "Monotonic frame counter (assumed per stream).",
+    ("FrameHeader", "game_time_unix_ms"): "int64 → JSON string.",
+    ("VehicleFlightInstruments", "quantum_fuel"): "0..1 fraction. optional since CL 13273298: absent = no quantum drive / unknown.",
+    ("VehicleFlightInstruments", "altitude"): "m. optional since CL 13273298 (absent = no reference body; older builds sent FLT_MAX — treat abs(v) > 1e30 as absent).",
+    ("VehicleState", "health"): "Hull health 0..1. PTU 5.0+; optional since CL 13273298.",
+    ("VehicleState", "quantum_travel"): "CL 13273298+.",
+    ("VehicleQuantumTravel", "spool_ratio"): "Assumed 0..1.",
+    ("VehicleQuantumTravel", "calibration_ratio"): "Assumed 0..1.",
+    ("VehicleQuantumTravel", "eta_seconds"): "Seconds to arrival; set while traveling (assumed).",
+    ("VehicleQuantumTravel", "remaining_distance_m"): "Metres (double).",
+    ("ActorState", "operator_mode"): "Seat operator mode (flight/combat/mining/…). CL 13273298+.",
+    ("ActorState", "location"): "Location hierarchy + jurisdiction. CL 13273298+.",
+    ("ActorState", "tracked_contract"): "Tracked mission. CL 13273298+.",
+    ("ActorState", "crime_stat"): "CrimeStat level (assumed 0..5). CL 13273298+.",
+    ("ActorState", "player_name"): "Local player handle. CL 13273298+.",
+    ("ActorLocation", "hierarchy"): "Outer → inner (assumed): system, planet, zone…",
+    ("ActorContract", "revision"): "Bumps when the tracked contract changes (assumed).",
+    ("ContractDetails", "ends_at_unix_ms"): "int64 → JSON string.",
+    ("GameDebugInfo", "universe_time_unix_ms"): "int64 → JSON string.",
+    ("GameDebugInfo", "shard_id"): "e.g. ptu_use1b_13273298_010 (matches Game.log 'New Shard Id').",
 }
 
-# leaf field names whose observed values are private (wallet balance): shown as <redacted>
-SENSITIVE = frozenset({"uec_balance"})
+# leaf field names whose observed values are private (wallet balance, player handle): shown as <redacted>
+SENSITIVE = frozenset({"uec_balance", "player_name"})
 
 SCALAR = {1: "double", 2: "float", 3: "int64", 4: "uint64", 5: "int32", 6: "fixed64", 7: "fixed32", 8: "bool",
           9: "string", 12: "bytes", 13: "uint32", 15: "sfixed32", 16: "sfixed64", 17: "sint32", 18: "sint64"}

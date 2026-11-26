@@ -482,6 +482,58 @@
    "verified": true
   },
   {
+   "id": "session_dropped",
+   "description": "Game.log: disconnected from the game server for a reason other than your own quit (AFK kick, duplicate login, ...)",
+   "kind": "event",
+   "event": "SESSION_DROPPED",
+   "severity": "warn",
+   "scope": "any",
+   "cooldown_s": 10,
+   "message": "Disconnected: {detail}",
+   "speech": null,
+   "sound": "warn",
+   "verified": true
+  },
+  {
+   "id": "session_hub_down",
+   "description": "Game.log: lost the connection to the backend login hub",
+   "kind": "event",
+   "event": "SESSION_HUB_DOWN",
+   "severity": "warn",
+   "scope": "any",
+   "cooldown_s": 30,
+   "message": "Backend hub {detail}",
+   "speech": null,
+   "sound": "warn",
+   "verified": true
+  },
+  {
+   "id": "session_hub_up",
+   "description": "Game.log: backend login hub reconnected (toast only)",
+   "kind": "event",
+   "event": "SESSION_HUB_UP",
+   "severity": "info",
+   "scope": "any",
+   "cooldown_s": 30,
+   "message": "Backend hub {detail}",
+   "speech": null,
+   "sound": null,
+   "verified": true
+  },
+  {
+   "id": "session_queue",
+   "description": "Game.log: login queue position changed (toast only)",
+   "kind": "event",
+   "event": "SESSION_QUEUE",
+   "severity": "info",
+   "scope": "any",
+   "cooldown_s": 30,
+   "message": "Login queue: {detail}",
+   "speech": null,
+   "sound": null,
+   "verified": true
+  },
+  {
    "id": "qt_arrived",
    "description": "Game.log: your own ship arrived from quantum travel",
    "kind": "event",

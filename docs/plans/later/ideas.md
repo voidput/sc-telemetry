@@ -1,7 +1,7 @@
 ---
 title: Ideas (ice box)
 tags: [docs, plans, later]
-updated: 2026-11-21
+updated: 2026-11-25
 ---
 
 # Ideas (ice box)
@@ -29,6 +29,8 @@ The hand-made data in `sctelemetry/data/` (action → telemetry field map, label
 - Exact per-variant ship capabilities (mining, salvage, refuel, scanning) from entity definitions and default loadouts.
 
 Same rule as the schema: derive at runtime, cache per build, ship nothing CIG-derived.
+
+Status 2026-11-25: partly covered from outside this repo. sc-gamedata datasets fetched per installed build (opt-in `--gamedata-fetch`, [api-spec.md §8.5](../../telemetry/api-spec.md)) now supply action labels, actionmaps and default inputs (`/api/actions` `keybind`). They will also supply upstream per-vehicle `capabilities`. Still open: on/off/toggle grouping and the action → telemetry field map (`action_state_map.json`), which remain hand-made.
 
 ## Opt-in shared org telemetry
 - **Idea:** org members opt in to share sanitised status (ship, shields/hull, system, events such as downed or QT) so an op can see each other.

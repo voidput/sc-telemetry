@@ -1,7 +1,7 @@
 ---
 title: Game Telemetry API specification (SC client, PTU 5.0)
 tags: [docs, telemetry]
-updated: 2026-11-21
+updated: 2026-11-25
 ---
 
 # Game Telemetry API specification (SC client, PTU 5.0)
@@ -99,6 +99,8 @@ server.game.telemetry.enabled = 1
 <GameTelemetry> Client connected (id=N total=N)
 ```
 Failure hint: `gRPC telemetry service NOT running (set grpc-client-server-enabled true).`
+
+**PTU 5.0.202.35026 (CL 13273298, 2026-11-24): service does not start.** Same startup settings as CL 13248297 (`[Env Var] GRPC_CLIENT_SERVER_ENABLED=true`, `[User CFG] server.game.telemetry.enabled=true`), but the log shows `<Server Started> No Star Engine services started.` then `<GRPC Server> No services configured`, no `Register Service` line, and nothing listens on the port. The setting names in the exe are unchanged; the cause is unknown (possibly a server-side switch). Untested: toggling `server.game.telemetry.enabled` at runtime (its help text says "Turning it on starts that server"). The schema for this build is additive only, see §7.
 
 **LIVE 4.10 differences:** LIVE has the stream only, with no trigger RPCs. It uses `grpc-client-server-address` instead of port/external, and it has no `server.game.telemetry.enabled` setting. This setup has not been tested on LIVE.
 
@@ -261,6 +263,7 @@ asyncio.run(main())
 |---|---|---|---|
 | LIVE 4.10.0 (CL 13220821) | ✔ | ✘ | baseline |
 | PTU 5.0.0 (CL 13248297) | ✔ | ✔ | `VehicleShields`, `VehicleState.health`, `VehicleMasterMode(State)`, `TriggerGameActionStatus`, trigger RPCs |
+| PTU 5.0.0 (CL 13273298) | ✘ service not started (§2) | ✘ | `TelemetryStreamResponse.header` (`FrameHeader`: sequence, game time) and `.game` (`GameFrame`: `GameState`, menu, mode, `GameDebugInfo` with fps, frame/thread/GPU ms, VRAM, ping/loss/bandwidth, server fps/hitches, shard id/name), `VehicleState.quantum_travel` (`QuantumTravelState`, spool, calibration, destination, ETA, distance), `ActorState.operator_mode` / `.location` (hierarchy, jurisdiction, armistice) / `.tracked_contract` / `.crime_stat` / `.player_name`. `quantum_fuel`, `altitude`, `VehicleState.health` became `optional` (absent instead of 0 / FLT_MAX). No removals or renumbering. |
 
 After each patch the schema is re-extracted automatically: each build gets its own cache key, `<Branch>-<RequestedP4ChangeNum>` from `build_manifest.id`. To see what changed, regenerate the reference:
 ```bash
@@ -309,7 +312,9 @@ The dashboard bridge (`uv run python -m sctelemetry.server`) turns the gRPC API 
 ### 8.1 `GET /api/actions`
 
 ```json
-{"actions": [{"action_name": "v_lights", "category": "lights_controller", "holdable": false}, ...],
+{"actions": [{"action_name": "v_lights", "category": "lights_controller", "holdable": false,
+              "keybind": {"label": "Headlights (Toggle)", "activation_mode": "press",
+                          "actionmaps": ["lights_controller"], "defaults": {"keyboard": ["l"]}}}, ...],
  "dangerous": ["v_eject", "v_emergency_exit", "v_power_set_off", "v_power_set_thrusters_off", "v_power_toggle",
                "v_power_toggle_thrusters", "v_self_destruct", "v_toggle_qdrive_engagement"],
  "source": "game",          // or "fake" in --mock / --replay
@@ -317,6 +322,7 @@ The dashboard bridge (`uv run python -m sctelemetry.server`) turns the gRPC API 
 ```
 - In grpc mode the last **non-empty** list is cached for 30 s. While the list is empty (the game returns `[]` until the player has spawned, and also when triggers are disabled), every request queries the game again. On a transport error the bridge returns the stale cache, which may be empty, together with `error`.
 - In fake mode the list comes from `.tmp/triggerable-actions.json` when that file exists. Otherwise a small built-in list is used.
+- `keybind` (every action; `null` when unknown or no dataset): the game's own label and default inputs from sc-gamedata `game-keybinds.json`, found beside `game-ships.json` (`--gamedata` dir, else `.tmp/gamedata/<channel>/`; the opt-in hub fetch in §8.5 fills it). Action names match the keybind action names verbatim (all 112 of a PTU list found, no aliases). A name in several actionmaps (e.g. `mobiglas`, `v_open_all_doors`) lists them all in `actionmaps`; label / activation mode / defaults come from the first actionmap that has them. `defaults` keeps only devices with bindings (`keyboard`, `mouse`, `gamepad`, `joystick`); `{}` means no default binding (true for most vehicle actions). The dashboard shows it as the button tooltip. `/api/ship` `gamedata.keybinds` = `{loaded, source, source_build, actions, error}`.
 
 ### 8.2 `POST /api/trigger`
 
@@ -384,9 +390,12 @@ Per mode: grpc uses `--game-log` or the channel default; `--mock` always serves 
 | `session_id`, `env_session` | `[Trace] @session: '...'`, `[Trace] @env_session: '...'` |
 | `shard`, `server_address`, `server_port`, `location_id`, `joined_at` | `[Notice] <Join PU> address[..] port[..] shard[..] locationId[..]` |
 | `shard` (update) | `[Notice] <Update Shard Id> New Shard Id: <shard>.` |
-| `region_code`, `region_name`, `shard_short` | parsed from the shard name `<env>_<region>_<build>_<n>`: `ptu_use1b_13248297_020` -> `use1b`, `US East`, `USE1B · 020`. Known prefixes: `use1` US East, `usw2` US West, `euw1` EU West, `euc1` EU Central, `apse2` Asia-Pacific SE (Sydney), `apne1` Asia-Pacific NE (Tokyo); anything else is shown raw. |
+| `region_code`, `region_name`, `shard_short` | parsed from the shard name `<env>_<region>_<build>_<n>`: `ptu_use1b_13248297_020` -> `use1b`, `US East`, `USE1B · 020`. Known prefixes: `use1` US East, `usw2` US West, `euw1` EU West, `euc1` EU Central, `apse2` Asia-Pacific SE (Sydney), `apne1` Asia-Pacific NE (Tokyo), `ape1` Asia-Pacific East; anything else is shown raw. |
 | `system` | most recent `Loading screen for <X> : ... closed after N seconds`; `Frontend_*` maps to `Main menu` |
 | `log_started_at` | timestamp of `Log started on ...` |
+| `queue_name`, `queue_position`, `queue_eta_s`, `queue_at` | `<AccountLoginQueueStatus> ... queue name <name> - position <n> - eta (seconds) <n>`; cleared on `<Join PU>` |
+| `hub`, `hub_status`, `hub_at` | `<Hub> connected - initiate[n]` / `<Hub> disconnected - status[-n]` (backend login hub link): `up` / `down` |
+| `disconnects`, `last_disconnect_reason`, `last_disconnect_at`, `last_disconnect_uptime_s`, `last_disconnect_expected` | `<Channel Disconnected> cause=.. reason="..." ... gamerules="..." ... uptime_secs=..`, game-server channels only (`*_Frontend` ignored); one per disconnect (lines within 2 s merged). `expected` = your own quit (`Player requested disconnect`, `disconnect light ...`, `Nub destroyed`, shutdown). The line also holds addresses, session/node ids and your handle: the regex skips them and they are never stored. |
 | `source`, `log_found` | `game_log` or `mock`; whether the file currently exists |
 | `has_server_address`, `has_session_ids` | whether the private fields are set (served instead of the values) |
 | `log_age_s` | seconds since Game.log was last written (file mtime); `null` for mock / log not found |
@@ -395,7 +404,9 @@ Timestamps (`joined_at`, `log_started_at`) are the log's own ISO-8601 UTC string
 
 **Leaving.** A `Loading screen for Frontend_*` (Main menu) after a join ends the shard session: `shard`, `region_*`, `shard_short`, `server_*`, `location_id` and `joined_at` are cleared (build, channel and session ids stay until the next launch). The dashboard treats the session as **idle** when telemetry is stale and `log_age_s > 120` (game closed, or bridge started after the game): badge `IDLE`, panel and header dimmed, the "In session" timer frozen at the last log write.
 
-**Events.** Session changes are appended to the snapshot `events` list as `{id, t, type, detail}` with `type` one of `SESSION_JOIN` (every `<Join PU>`), `SESSION_SHARD_CHANGE` (an `Update Shard Id` naming a different shard than the current one) and `SESSION_SYSTEM` (the system changed) and `SESSION_LEAVE` (back to the main menu after a join; detail = the shard left). `t` is the log line's timestamp, so events from the initial full read carry their original time. `detail` is the shard plus region name, or the system name; it never carries the server address or session ids.
+**Events.** Session changes are appended to the snapshot `events` list as `{id, t, type, detail}` with `type` one of `SESSION_JOIN` (every `<Join PU>`), `SESSION_SHARD_CHANGE` (an `Update Shard Id` naming a different shard than the current one) and `SESSION_SYSTEM` (the system changed) and `SESSION_LEAVE` (back to the main menu after a join; detail = the shard left). `t` is the log line's timestamp, so events from the initial full read carry their original time. `detail` is the shard plus region name, or the system name; it never carries the server address or session ids. Also: `SESSION_QUEUE` (queue position changed; detail `position N, ETA 1m 52s`), `SESSION_HUB_DOWN` / `SESSION_HUB_UP` (hub link lost / back), `SESSION_DISCONNECT` (own quit) and `SESSION_DROPPED` (any other reason, e.g. `Remote Disconnect - player inactive` (AFK kick) or `Dup Login`; detail `<reason> (after <uptime>)`).
+
+**Not in Game.log** (checked across about 230 LIVE and the PTU logs, 2026-11-23): shard or server player counts, ping/latency and a readable server name. `<Population Manager Stats> players=N` (PTU 5.0) and `<ShardSeeding Success> ShardName[]` describe only the local menu instance; `<PlayerJoined>`/`<PlayerLeft>` are mission-party pushes.
 
 **Privacy.** `server_address`, `server_port`, `session_id` and `env_session` never appear in `/events`, `/api/snapshot` or `/api/session`; only `GET /api/session/private` returns them, behind the `/api/trigger` Host/Origin check (blocks DNS rebinding and other hosts; with `--host 0.0.0.0` only `localhost`/`127.0.0.1` pass). The dashboard fetches it only while a Reveal button is on. `--record` writes `{"t", "session"}` records with those four fields stripped (`gamelog.public()`), skipping identical consecutive sessions and the pre-first-poll placeholder; replay skips these records.
 
@@ -418,7 +429,7 @@ Parsed from unofficial debug lines in the same Game.log (formats and caveats: [g
 - `zone.kind`: `armistice`, `monitored`, `ungoverned`, `jurisdiction` or `other` (e.g. after "Leaving Armistice Zone"). `since` and the `*_seen` times are epoch seconds from the log line timestamps.
 - `armistice` is true from "Entering Armistice Zone" until "Leaving Armistice Zone". `jurisdiction` is the last "Entered <X> Jurisdiction" name.
 - `nearby`: one entry per ship class, most recently seen first, at most 50. `count` is distinct entities of that class (ship instances, not people: a reclaimed or respawned ship can count twice, parked and AI ships count too); `nearby_count` is all distinct entities. Your own ship(s) are excluded.
-- `nearby[].info` and `own_ship.info` (snapshot and `/api/signals` only, not `--record`): `{display_name, manufacturer, manufacturer_code, role, career, size, crew, cargo_scu}` from the local game dataset (`shipcaps`, no network); `null` for a class the dataset does not know. `size` is the dataset's vehicle size (1 smallest … 6 capital), `crew` its crew seats.
+- `nearby[].info` and `own_ship.info` (snapshot and `/api/signals` only, not `--record`): `{display_name, manufacturer, manufacturer_code, role, career, size, crew, cargo_scu}` from the local game dataset (`shipcaps`; no network at lookup time, see the opt-in hub fetch in §8.5); `null` for a class the dataset does not know. `size` is the dataset's vehicle size (1 smallest … 6 capital), `crew` its crew seats.
 - `own_ship.source`: `telemetry` (frame `vehicle.state.name`) or `game_log` (last `Vehicle Control Flow` seat release); `null` until known.
 - All signal state resets on rotation, `Log started`, and `SESSION_JOIN` / `SESSION_SHARD_CHANGE` / `SESSION_LEAVE`.
 
@@ -450,11 +461,13 @@ Data for showing live state **on** action buttons (dashboard Controls panel; oth
           "cargo_scu": null},
  "source_build": "5.0.202.10025", "source": "ptu/game-ships.json"}
 ```
-- `null` when there is no vehicle or the class is not in the dataset (no gating; the dashboard shows `?`). `/api/ship` and `/api/ships` add `gamedata: {loaded, source, source_build, ships, error}`.
+- `null` when there is no vehicle or the class is not in the dataset (no gating; the dashboard shows `?`). `/api/ship` and `/api/ships` add `gamedata: {loaded, source, source_build, ships, error, fetch}`; `fetch` is the last hub fetch report `{build, channel, fetched[], current[], missing[], rejected{name: reason}, error}`, or `null` when the fetch is off.
 - `source` (both places) is a short label `<parent dir>/<file>` (e.g. `ptu/game-ships.json`, `live/game-ships.json`), never the absolute path; `error` names files the same way. The full path appears only in the bridge's stderr log.
 - Source: sc-gamedata `game-ships.json` (+ `game-salvage.json` beside it). Priority: `--gamedata PATH` / `$SCTELEMETRY_GAMEDATA` (file or directory) → `.tmp/gamedata/<channel>/game-ships.json`. The dataset is optional and comes from a separate sc-gamedata extractor (not part of this repo). The derived table is cached in `.tmp/ship-capabilities.json` keyed by source path/mtime/size/build, and reloaded when the source mtime changes (checked at most every 5 s). A missing or half-written dataset only disables gating.
+- Hub fetch (opt-in, off by default: `--gamedata-fetch` / `$SCTELEMETRY_GAMEDATA_FETCH=1`; ignored with `--gamedata`; `sctelemetry/gamedata_hub.py`): once at startup, in the background, the bridge reads the installed build of the channel from `<SC>/<CHANNEL>/build_manifest.id` (`Data.RequestedP4kVersion`, else `Data.Version`) and downloads `https://raw.githubusercontent.com/voidput/sc-gamedata-dumps/<build>/data/{game-ships,game-salvage,game-keybinds}.json` into `.tmp/gamedata/<channel>/`. The hub has one tag per build (PTU tags are prereleases); a missing tag or file is reported as `missing` and nothing else happens. Never another build. Checks: JSON object, `_build == <build>`, `_schema` (when present) names the dataset, and `bytes` / `sha256` from the tag's root `build.json` (`build` must equal the tag) when it lists them. Unknown keys are ignored. Writes are atomic. `build.json` is fetched on every run. A local file is not downloaded again when its sha256 equals the one `build.json` lists (tags can be republished under the same name), or, for a tag without hashes, when its `_build` equals the build. shipcaps reloads after a successful fetch. This is the only game-data request the bridge makes.
+- Upstream capabilities: when a vehicle carries `capabilities` (sc-gamedata, same keys as below plus `cargoKnown`), each boolean key it sets wins; missing or non-boolean keys use the local derivation. `cargoKnown: false` means cargo `false` and `cargo_scu: null`. The salvage dataset's ship list still adds `salvage`. `manufacturer` / `manufacturer_code` in `info` prefer the dataset's `manufacturerName` / `manufacturerCode` (code lower-cased, `_2025`-style suffix stripped), else the built-in code table.
 - Key: `recordName` `EntityClassDefinition.<CLASS>`, where `<CLASS>` equals telemetry `vehicle.state.class_name`. Variants sharing a class are OR-merged.
-- Derivation (`sctelemetry/shipcaps.py`, default loadout): `mining` = any `WeaponMining` or role contains "Mining"; `salvage` = role contains "Salvage" or the salvage dataset lists the class (current datasets list none); `refuel` = role contains "Refuel"; `tractor` = `TractorBeam`; `guns` = `WeaponGun` or turrets; `scan` = radars; `quantum` = quantumDrives; `qed` = quantumEnforcement; `emp` = `EMP`; `missiles` = missileRacks; `cargo` (bool) = `totals.cargoScu` > 0 or cargoGrids exist; `cargo_scu` (number | null) = `totals.cargoScu` when present. `cargo: false` means "not in the dataset", not "carries none" (the dashboard shows `?`). Display only, never gates.
+- Derivation (`sctelemetry/shipcaps.py`, default loadout): `mining` = any `WeaponMining` or role contains "Mining"; `salvage` = role contains "Salvage" or the salvage dataset's `vehicles[]` lists the class (hub datasets from 2026-11-25 list 34 on LIVE 4.10.201); `refuel` = role contains "Refuel"; `tractor` = `TractorBeam`; `guns` = `WeaponGun` or turrets; `scan` = radars; `quantum` = quantumDrives; `qed` = quantumEnforcement; `emp` = `EMP`; `missiles` = missileRacks; `cargo` (bool) = `totals.cargoScu` > 0 or cargoGrids exist; `cargo_scu` (number | null) = `totals.cargoScu` when present. `cargo: false` means "not in the dataset", not "carries none" (the dashboard shows `?`). Display only, never gates.
 - Gating reach: only `mining`, `salvage` and `refuel` gate in practice. `guns` follows the rule above, so mining ships with turrets or default-loadout repeaters (e.g. Prospector: `WeaponMining` + 2× `WeaponGun`) report `guns: true` and `v_set_guns_mode` is effectively never gated; `scan` / `quantum` are true for nearly every ship. Tightening `guns` to `WeaponGun` only is a possible later change.
 
 **`GET /api/shield-faces`** serves `sctelemetry/data/shield_faces.json`: `{by_count: {"1": {layout: "bubble", labels: ["ALL"], ring: [0]}, "2": {layout: "front_back"}, "4": {layout: "quadrant"}, "6": {layout: "quadrant_top_bottom", ring: [0,1,2,3], pips: [4,5]}}, overrides_by_class: {}}`. `vehicle.state.shields.faces` has a variable length equal to the ship's shield face layout, not its generator count (verified: MISC_Prospector 1 = bubble, RSI_Perseus 4). Face order is unverified, so labels stay `F1..Fn`. Any other count renders as N equal ring segments. A face ≤ 0 while the overall level is > 0 is shown as `DOWN`.

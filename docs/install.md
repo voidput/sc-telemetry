@@ -1,7 +1,7 @@
 ---
 title: Install and setup
 tags: [docs]
-updated: 2026-11-21
+updated: 2026-11-25
 ---
 
 # Install and setup
@@ -282,7 +282,10 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run.ps1 --mock   # Windows
 The dashboard can grey out mining, salvage and refuel controls on ships that cannot use them. That needs a game-data export (`game-ships.json`, and `game-salvage.json` next to it) from an sc-gamedata extractor, a separate tool that is not part of this project. Either:
 
 - put the files in `.tmp/gamedata/<channel>/` inside the project folder, channel in lower case (for example `.tmp/gamedata/ptu/game-ships.json`), or
-- point `--gamedata PATH` or the `SCTELEMETRY_GAMEDATA` environment variable at the file or its folder.
+- point `--gamedata PATH` or the `SCTELEMETRY_GAMEDATA` environment variable at the file or its folder, or
+- let the bridge download them: start it with `--gamedata-fetch` (or set `SCTELEMETRY_GAMEDATA_FETCH=1`). It reads your installed build from `<channel>/build_manifest.id` and fetches that exact build's files from the public [sc-gamedata-dumps](https://github.com/voidput/sc-gamedata-dumps) repository into `.tmp/gamedata/<channel>/`. It never uses another build; if the build is not published yet, nothing is downloaded. One-off without starting the bridge: `uv run python -m sctelemetry.gamedata_hub --channel PTU`.
+
+The download is **off by default**: without `--gamedata-fetch` the bridge makes no request for game data. `--gamedata PATH` turns the download off.
 
 Skip it and nothing breaks: capabilities show as unknown and no button is greyed out.
 

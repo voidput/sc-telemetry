@@ -31,7 +31,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from google.protobuf import json_format
 
-from . import alerts, envcompat, gamelog, mock, paths, people, shipcaps, stubs
+from . import alerts, envcompat, gamedata_hub, gamelog, keybinds, mock, paths, people, shipcaps, stubs
 
 STATIC = pathlib.Path(__file__).parent / "static"
 DATA = pathlib.Path(__file__).parent / "data"
@@ -103,6 +103,8 @@ class Hub:
         self.signals: gamelog.SignalsState | None = None  # Game.log signals (None = disabled)
         self.on_signals = None            # optional hook(public signals) after each session/signals change
         self.shipcaps: shipcaps.ShipCaps | None = None  # game-data capability table (None = not loaded)
+        self.keybinds: keybinds.Keybinds | None = None  # action -> game keybind info (None = not loaded)
+        self.gamedata_fetch: dict | None = None  # last dumps-hub fetch report (None = fetch off / not run)
         self.on_frame = None              # optional hook(frame) after each pushed frame (alert engine)
         self.on_event = None              # optional hook(event) for each new event except ALERT
         self.people: people.PeopleState | None = None  # handles seen in Game.log (None = disabled)
@@ -495,6 +497,18 @@ def _data_response(name: str):
                             status_code=500)
 
 
+async def run_gamedata_fetch():
+    """Opt-in (--gamedata-fetch): pull the installed build's datasets from the dumps hub into
+    .tmp/gamedata/<channel>/, then reload shipcaps. Runs once in the background; failures only log."""
+    rep = await asyncio.to_thread(gamedata_hub.sync, getattr(CFG, "sc_dir", None), getattr(CFG, "channel", "PTU"))
+    hub.gamedata_fetch = rep
+    print(gamedata_hub.summary(rep), file=sys.stderr, flush=True)
+    if rep["fetched"] and hub.shipcaps is not None:
+        await asyncio.to_thread(hub.shipcaps.reload, True)
+    if rep["fetched"] and hub.keybinds is not None:
+        await asyncio.to_thread(hub.keybinds.reload, True)
+
+
 @contextlib.asynccontextmanager
 async def lifespan(app):
     try:  # game-data capabilities: a missing/broken dataset only disables gating, never the bridge
@@ -505,6 +519,18 @@ async def lifespan(app):
               if st["loaded"] else f"[shipcaps] disabled: {st['error']}", file=sys.stderr, flush=True)
     except Exception as e:  # noqa: BLE001
         print(f"[shipcaps] failed: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+    try:  # keybind info for trigger actions: optional like shipcaps
+        hub.keybinds = await asyncio.to_thread(keybinds.default, getattr(CFG, "channel", "PTU"),
+                                               getattr(CFG, "gamedata", None))
+        kst = hub.keybinds.status()
+        if kst["loaded"]:
+            print(f"[keybinds] {kst['actions']} actions from {hub.keybinds.source} (build {kst['source_build']})",
+                  file=sys.stderr, flush=True)
+    except Exception as e:  # noqa: BLE001
+        print(f"[keybinds] failed: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+    fetch_task = None
+    if getattr(CFG, "gamedata_fetch", False) and not getattr(CFG, "gamedata", None):
+        fetch_task = asyncio.create_task(_guard("gamedata-fetch", run_gamedata_fetch(), status=False))
     api, apig, types = stubs.load()
     app.state.api, app.state.apig = api, apig
     app.state.channel = None
@@ -520,6 +546,8 @@ async def lifespan(app):
     else:  # one shared channel for unary calls (trigger + list); the stream keeps its own
         app.state.channel = grpc.aio.insecure_channel(CFG.grpc)
     tasks = [asyncio.create_task(_guard("source", src)), asyncio.create_task(_guard("sampler", run_sampler()))]
+    if fetch_task is not None:
+        tasks.append(fetch_task)
     global ALERTS
     try:  # alerts are side output: a broken rules file or audio setup never stops the bridge
         ALERTS = build_alerts()
@@ -670,8 +698,10 @@ async def get_shield_faces():
 
 
 def _gamedata_status() -> dict:
-    return hub.shipcaps.status() if hub.shipcaps is not None else {
+    st = hub.shipcaps.status() if hub.shipcaps is not None else {
         "loaded": False, "source": None, "source_build": None, "ships": 0, "error": "not loaded"}
+    kb = hub.keybinds.status() if hub.keybinds is not None else None
+    return {**st, "fetch": hub.gamedata_fetch, "keybinds": kb}
 
 
 @app.get("/api/ship")
@@ -706,8 +736,19 @@ async def get_history():
 _actions_cache = {"t": 0.0, "actions": []}  # last NON-empty game list
 
 
+def with_keybinds(acts: list[dict]) -> list[dict]:
+    """Copy of `acts` with `keybind: {label, activation_mode, actionmaps, defaults} | null` per action."""
+    kb = hub.keybinds
+    return [{**a, "keybind": kb.get(a.get("action_name")) if kb is not None else None} for a in acts]
+
+
 @app.get("/api/actions")
 async def actions():
+    r = await _actions_raw()
+    return {**r, "actions": with_keybinds(r["actions"])}
+
+
+async def _actions_raw():
     base = {"dangerous": sorted(DANGEROUS)}
     if app.state.fake is not None:
         return {"actions": app.state.fake.actions, **base, "source": "fake"}
@@ -1107,6 +1148,10 @@ def main():
     ap.add_argument("--gamedata", metavar="PATH", default=envcompat.getenv("GAMEDATA") or None,
                     help="sc-gamedata game-ships.json (or its directory) for ship capabilities ($SCTELEMETRY_GAMEDATA); "
                          "default .tmp/gamedata/<channel>/game-ships.json")
+    ap.add_argument("--gamedata-fetch", action="store_true", default=gamedata_hub.enabled_by_env(),
+                    help="download the installed build's datasets from the public sc-gamedata dumps hub into "
+                         ".tmp/gamedata/<channel>/ ($SCTELEMETRY_GAMEDATA_FETCH=1; off by default; "
+                         "ignored with --gamedata)")
     ap.add_argument("--alerts", metavar="PATH", default=envcompat.getenv("ALERTS") or None,
                     help="user alert rules patch ($SCTELEMETRY_ALERTS; default .tmp/alerts.json if present)")
     ap.add_argument("--alerts-audio", default=(envcompat.getenv("ALERTS_AUDIO") or "auto").lower(),
