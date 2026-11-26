@@ -12,8 +12,9 @@ fetch. Manual run: `uv run python -m sctelemetry.gamedata_hub [--channel PTU] [-
 
 Checks per dataset: valid JSON object, `_build == tag`, `_schema` (when present) names the dataset
 (`game-ships@1`), and size / sha256 against `build.json.files[]` when the tag lists them. `build.json.build`
-must equal the tag. Unknown keys are ignored. Writes are atomic (temp file + rename); a dataset whose local
-copy already has `_build == tag` is not downloaded again.
+must equal the tag. Unknown keys are ignored. Writes are atomic (temp file + rename). A dataset is not downloaded
+again when its local copy is current: sha256 equal to `build.json`'s (tags can be republished under the same
+name), or, for a tag without hashes, `_build == tag`. `build.json` itself is fetched on every run.
 """
 from __future__ import annotations
 
@@ -83,6 +84,21 @@ def local_build(p: pathlib.Path) -> str | None:
     return None
 
 
+def local_sha256(p: pathlib.Path) -> str | None:
+    with contextlib.suppress(OSError):
+        return hashlib.sha256(p.read_bytes()).hexdigest()
+    return None
+
+
+def is_current(p: pathlib.Path, tag: str, meta: dict) -> bool:
+    """Local copy is up to date: sha256 equals build.json's when the tag lists one (tags can be republished
+    under the same name), else its `_build` equals the tag."""
+    sha = meta.get("sha256")
+    if isinstance(sha, str) and sha:
+        return local_sha256(p) == sha.lower()
+    return local_build(p) == tag
+
+
 def _file_meta(build_json: dict | None, name: str) -> dict:
     files = build_json.get("files") if isinstance(build_json, dict) else None
     for f in files if isinstance(files, list) else []:
@@ -131,10 +147,6 @@ def sync(sc_dir, channel, root: pathlib.Path = stubs.ROOT, get=urllib_get, datas
         rep["error"] = f"no installed build for {rep['channel']} (build_manifest.id)"
         return rep
     out = dest_dir(channel, root)
-    todo = [n for n in datasets if local_build(out / n) != tag]
-    rep["current"] = [n for n in datasets if n not in todo]
-    if not todo:
-        return rep
     try:
         status, body = get(f"{RAW_BASE}/{tag}/build.json")
         build_json = None
@@ -147,6 +159,8 @@ def sync(sc_dir, channel, root: pathlib.Path = stubs.ROOT, get=urllib_get, datas
         elif status != 404:
             rep["error"] = f"build.json: HTTP {status}"
             return rep
+        todo = [n for n in datasets if not is_current(out / n, tag, _file_meta(build_json, n))]
+        rep["current"] = [n for n in datasets if n not in todo]
         for name in todo:
             status, body = get(f"{RAW_BASE}/{tag}/data/{name}")
             if status == 404:

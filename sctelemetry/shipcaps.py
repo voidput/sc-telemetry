@@ -28,7 +28,7 @@ CAPS = ("mining", "salvage", "refuel", "tractor", "guns", "scan", "quantum", "qe
 SHIPS_FILE = "game-ships.json"
 SALVAGE_FILE = "game-salvage.json"
 CACHE_PATH = stubs.ROOT / ".tmp" / "ship-capabilities.json"
-CACHE_VERSION = 4  # 3: + manufacturer / size / crew per class (Nearby lookup info); 4: upstream `capabilities`
+CACHE_VERSION = 5  # 3: + manufacturer / size / crew per class (Nearby lookup info); 4: upstream `capabilities`; 5: upstream manufacturer name
 RECHECK_S = 5.0  # min seconds between mtime checks of the source file
 RECORD_PREFIX = "EntityClassDefinition."
 # dataset `manufacturer` codes -> names (the dataset carries only the code; `_2025`-style suffixes stripped)
@@ -160,6 +160,16 @@ def manufacturer_of(code) -> tuple[str | None, str | None]:
     return c, MANUFACTURERS.get(c, c.upper())
 
 
+def vehicle_manufacturer(v: dict) -> tuple[str | None, str | None]:
+    """(code, name) for a dataset vehicle. Upstream `manufacturerCode` / `manufacturerName` (sc-gamedata,
+    e.g. "RSI_2025" / "Roberts Space Industries") win; the code keeps this API's form (lower case, `_2025`
+    suffix stripped). Fallback: the `manufacturer` code + the MANUFACTURERS table."""
+    code, name = manufacturer_of(v.get("manufacturerCode") if isinstance(v.get("manufacturerCode"), str)
+                                 and v["manufacturerCode"].strip() else v.get("manufacturer"))
+    up = v.get("manufacturerName")
+    return code, (up.strip() if isinstance(up, str) and up.strip() else name)
+
+
 def _pos_int(v) -> int | None:
     return v if isinstance(v, int) and not isinstance(v, bool) and v > 0 else None
 
@@ -184,8 +194,8 @@ def build_table(ships: dict, salvage: dict | None = None) -> dict[str, dict]:
         table[cls] = {"class": cls, "display_name": name if isinstance(name, str) else cls,
                       "role": v.get("role") if isinstance(v.get("role"), str) else None,
                       "career": v.get("career") if isinstance(v.get("career"), str) else None,
-                      "manufacturer_code": manufacturer_of(v.get("manufacturer"))[0],
-                      "manufacturer": manufacturer_of(v.get("manufacturer"))[1],
+                      "manufacturer_code": vehicle_manufacturer(v)[0],
+                      "manufacturer": vehicle_manufacturer(v)[1],
                       "size": _pos_int(v.get("size")), "crew": _pos_int(v.get("crewSize")),
                       "caps": caps, "variants": 1}
     return table

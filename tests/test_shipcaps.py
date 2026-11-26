@@ -256,3 +256,13 @@ def test_manufacturer_codes_and_info_fields(tmp_path):
                                          "manufacturer_code": "aegs", "role": "Heavy Gunship", "career": "Combat",
                                          "size": 4, "crew": 5, "cargo_scu": None}
     assert caps.info("TEST_Bare")["size"] is None and caps.info("NOPE") is None and caps.info(None) is None
+
+
+def test_upstream_manufacturer_fields_win():
+    v = dict(MINER, manufacturer="misc", manufacturerCode="MISC", manufacturerName="Musashi Industrial & Starflight Concern")
+    assert sc.vehicle_manufacturer(v) == ("misc", "Musashi Industrial & Starflight Concern")
+    assert sc.vehicle_manufacturer(dict(MINER, manufacturerCode="RSI_2025", manufacturerName=" "))[0] == "rsi"
+    assert sc.vehicle_manufacturer(dict(MINER, manufacturerCode="RSI_2025", manufacturerName=" "))[1] == "Roberts Space Industries"
+    assert sc.vehicle_manufacturer(dict(MINER, manufacturer="drak")) == ("drak", "Drake Interplanetary")
+    t = sc.build_table(dataset(v))
+    assert t["TEST_Miner"]["manufacturer"] == "Musashi Industrial & Starflight Concern"

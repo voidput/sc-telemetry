@@ -90,3 +90,21 @@ def test_no_tag_yet_only_reports_missing(tmp_path):
     rep = gh.sync(sc, "PTU", root=tmp_path, get=FakeGet({}))
     assert rep["error"] is None and rep["missing"] == list(gh.DATASETS) and rep["fetched"] == []
     assert "missing" in gh.summary(rep)
+
+
+def test_republished_tag_is_fetched_again_by_sha256(tmp_path):
+    sc = install(tmp_path)
+    old, new = ds(rev=1), ds(rev=2)
+
+    def hub(body):
+        return FakeGet({f"{TAG}/build.json": json.dumps({"build": TAG, "files": [
+            {"name": "data/game-ships.json", "sha256": hashlib.sha256(body).hexdigest(), "bytes": len(body)}]}).encode(),
+            f"{TAG}/data/game-ships.json": body})
+
+    assert gh.sync(sc, "PTU", root=tmp_path, get=hub(old), datasets=("game-ships.json",))["fetched"] == ["game-ships.json"]
+    rep = gh.sync(sc, "PTU", root=tmp_path, get=hub(old), datasets=("game-ships.json",))
+    assert rep["current"] == ["game-ships.json"] and rep["fetched"] == []  # same sha: nothing downloaded
+    # same tag name, new bytes (_build unchanged): sha differs -> downloaded again
+    rep = gh.sync(sc, "PTU", root=tmp_path, get=hub(new), datasets=("game-ships.json",))
+    assert rep["fetched"] == ["game-ships.json"]
+    assert (tmp_path / ".tmp/gamedata/ptu/game-ships.json").read_bytes() == new
